@@ -24,6 +24,7 @@ final class ScreenshotTests: XCTestCase {
                 let app = launch(access: screen.access, dark: dark)
                 XCTAssertTrue(app.buttons["gate.primary"].waitForExistence(timeout: 15), "\(screen.name): no primary button")
                 snap(screen.name, dark: dark)
+                app.terminate()
             }
         }
     }
@@ -41,6 +42,7 @@ final class ScreenshotTests: XCTestCase {
                 let app = launch(tab: tab.tab, dark: dark)
                 XCTAssertTrue(app.navigationBars[tab.title].waitForExistence(timeout: 15), "\(tab.name): no \(tab.title) title")
                 snap(tab.name, dark: dark)
+                app.terminate()
             }
         }
     }
@@ -69,6 +71,10 @@ final class ScreenshotTests: XCTestCase {
     }
 
     // MARK: Helpers
+
+    // Each loop terminates the app itself before the next launch, as
+    // MyTeams' screenshot tests do: leaving it to launch() let XCUITest time
+    // out terminating the previous instance ("Failed to terminate").
 
     @MainActor
     private func launch(access: String = "ready", tab: String? = nil, dark: Bool) -> XCUIApplication {

@@ -49,6 +49,7 @@ struct AccessGateView: View {
                             Text(content.primary.title)
                                 .font(.headline)
                                 .frame(maxWidth: .infinity)
+                                .foregroundStyle(Theme.onAccent)
                         }
                         .buttonStyle(.glassProminent)
                         .controlSize(.large)

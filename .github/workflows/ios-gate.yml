@@ -90,6 +90,8 @@ jobs:
             2>&1 | tee build-release.log
           test -d dd/Build/Products/Release-iphoneos/Standup.app
 
+      # -collect-test-diagnostics never: a failing test otherwise spends ten
+      # minutes collecting simulator diagnostics before the step ends.
       - name: Unit tests
         shell: bash
         run: |
@@ -98,6 +100,7 @@ jobs:
             -project Standup.xcodeproj -scheme Standup \
             -destination "$TEST_DESTINATION" -derivedDataPath ./dd-sim \
             -only-testing:StandupTests -resultBundlePath unit.xcresult \
+            -collect-test-diagnostics never \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee unit-tests.log
 
       - name: Screenshot tests
@@ -108,6 +111,7 @@ jobs:
             -project Standup.xcodeproj -scheme Standup \
             -destination "$TEST_DESTINATION" -derivedDataPath ./dd-sim \
             -only-testing:StandupUITests -resultBundlePath ui.xcresult \
+            -collect-test-diagnostics never \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee ui-tests.log
 
       - name: Export screenshots
