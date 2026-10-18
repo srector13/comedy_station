@@ -47,6 +47,10 @@ struct ArtistView: View {
                     .accessibilityHidden(!showsTitle)
             }
         }
+        // The hero runs under the bar, which leaves no edge effect behind
+        // it; once the hero scrolls away the bar gets its background back
+        // so the shelves don't show through the title.
+        .toolbarBackgroundVisibility(showsTitle ? .visible : .hidden, for: .navigationBar)
         .onScrollGeometryChange(for: Bool.self) { geometry in
             geometry.contentOffset.y + geometry.contentInsets.top > Self.heroHeight - 100
         } action: { _, pastHero in
