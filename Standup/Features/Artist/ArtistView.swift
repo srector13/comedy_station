@@ -46,6 +46,9 @@ struct ArtistView: View {
                     .opacity(showsTitle ? 1 : 0)
                     .accessibilityHidden(!showsTitle)
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                LibraryToolbarButton(item: .comedian(shown))
+            }
         }
         // The hero runs under the bar, which leaves no edge effect behind
         // it; once the hero scrolls away the bar gets its background back
@@ -125,6 +128,7 @@ struct ArtistView: View {
                 FeaturedSpecialCard(album: featured)
             }
             .buttonStyle(.plain)
+            .libraryContextMenu(.special(featured))
             .padding(.horizontal, 20)
             .accessibilityIdentifier("artist.featured")
         }
@@ -139,6 +143,7 @@ struct ArtistView: View {
                                 SpecialCard(album: album)
                             }
                             .buttonStyle(.plain)
+                            .libraryContextMenu(.special(album))
                         }
                     }
                     .scrollTargetLayout()
@@ -164,6 +169,7 @@ struct ArtistView: View {
                                 .contentShape(.rect)
                         }
                         .buttonStyle(.plain)
+                        .libraryContextMenu(.bit(track))
                         if track.id != detail.topBits.last?.id {
                             Divider().padding(.leading, 60)
                         }
@@ -183,6 +189,7 @@ struct ArtistView: View {
                                 ComedianBubble(artist: other)
                             }
                             .buttonStyle(.plain)
+                            .libraryContextMenu(.comedian(other))
                         }
                     }
                     .scrollTargetLayout()
@@ -236,5 +243,5 @@ struct FeaturedSpecialCard: View {
         ArtistView(artist: MockData.comedians[0])
             .comedyDestinations()
     }
-    .tint(Theme.accent)
+    .previewEnvironment()
 }

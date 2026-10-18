@@ -47,6 +47,8 @@ struct AlbumView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("album.track.\(index)")
+                    .libraryContextMenu(.bit(track))
+                    .librarySwipeActions(.bit(track))
                 }
                 footer(detail)
                     .listRowSeparator(.hidden)
@@ -64,6 +66,9 @@ struct AlbumView: View {
                     .lineLimit(1)
                     .opacity(showsTitle ? 1 : 0)
                     .accessibilityHidden(!showsTitle)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                LibraryToolbarButton(item: .special(shown))
             }
         }
         .onScrollGeometryChange(for: Bool.self) { geometry in
@@ -253,5 +258,5 @@ struct NotesSheet: View {
         AlbumView(album: MockData.albums[0])
             .comedyDestinations()
     }
-    .tint(Theme.accent)
+    .previewEnvironment()
 }

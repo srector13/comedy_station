@@ -41,11 +41,11 @@ struct RootView: View {
 #Preview("Ready") {
     RootView()
         .environment(AuthGate(access: MockMusicAccess(scenario: .ready)))
-        .tint(Theme.accent)
+        .previewEnvironment()
 }
 
 #Preview("Onboarding") {
     RootView()
         .environment(AuthGate(access: MockMusicAccess(scenario: .notDetermined)))
-        .tint(Theme.accent)
+        .previewEnvironment()
 }

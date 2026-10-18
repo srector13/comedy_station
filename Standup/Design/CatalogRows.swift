@@ -80,10 +80,11 @@ struct BitRow: View {
     }
 }
 
-/// A special in a horizontal shelf: artwork over title and year.
+/// A special in a shelf or grid: artwork over title and year. A nil width
+/// fills the grid cell.
 struct SpecialCard: View {
     let album: ComedyAlbum
-    var width: CGFloat = 160
+    var width: CGFloat? = 160
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -101,6 +102,7 @@ struct SpecialCard: View {
             }
         }
         .frame(width: width, alignment: .leading)
+        .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
         .accessibilityElement(children: .combine)
     }
 }

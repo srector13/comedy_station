@@ -52,6 +52,8 @@ struct SearchResultsList: View {
                             ComedianRow(artist: artist)
                         }
                         .accessibilityIdentifier("result.artist.\(artist.id)")
+                        .libraryContextMenu(.comedian(artist))
+                        .librarySwipeActions(.comedian(artist))
                     }
                 }
             }
@@ -62,20 +64,26 @@ struct SearchResultsList: View {
                             SpecialRow(album: album)
                         }
                         .accessibilityIdentifier("result.album.\(album.id)")
+                        .libraryContextMenu(.special(album))
+                        .librarySwipeActions(.special(album))
                     }
                 }
             }
             if !results.bits.isEmpty {
                 Section("Bits") {
                     ForEach(results.bits) { track in
-                        if let album = track.albumStub {
-                            NavigationLink(value: Route.album(album)) {
+                        Group {
+                            if let album = track.albumStub {
+                                NavigationLink(value: Route.album(album)) {
+                                    BitRow(track: track)
+                                }
+                                .accessibilityIdentifier("result.track.\(track.id)")
+                            } else {
                                 BitRow(track: track)
                             }
-                            .accessibilityIdentifier("result.track.\(track.id)")
-                        } else {
-                            BitRow(track: track)
                         }
+                        .libraryContextMenu(.bit(track))
+                        .librarySwipeActions(.bit(track))
                     }
                 }
             }
@@ -120,5 +128,5 @@ struct SuggestionRow: View {
             .comedyDestinations()
     }
     .task { model.submit() }
-    .tint(Theme.accent)
+    .previewEnvironment()
 }

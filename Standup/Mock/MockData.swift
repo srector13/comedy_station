@@ -49,6 +49,20 @@ enum MockData {
         comedians.filter { $0.id != artistID }
     }
 
+    /// A filled App Library (`-StandupLibrary seeded`, previews): a few of
+    /// each kind, added over the past weeks, newest first.
+    static var librarySeed: [(LibraryItem, Date)] {
+        let now = Date(timeIntervalSince1970: 1_792_000_000) // fixed, so screenshots don't drift
+        let day: TimeInterval = 86_400
+        var items: [LibraryItem] = []
+        items += ["mock-al-lower", "mock-al-parking", "mock-al-leftovers", "mock-al-customer", "mock-al-laundromat"]
+            .compactMap(album(id:)).map(LibraryItem.special)
+        items += ["mock-ar-maya", "mock-ar-dev", "mock-ar-rosa"].compactMap(artist(id:)).map(LibraryItem.comedian)
+        items += [("mock-al-overthinking", 3), ("mock-al-groupchat", 2), ("mock-al-momsaid", 5)]
+            .compactMap { tracks[$0.0]?[$0.1] }.map(LibraryItem.bit)
+        return items.enumerated().map { index, item in (item, now - Double(index) * 2.5 * day) }
+    }
+
     static func artist(id: String) -> ComedyArtist? {
         comedians.first { $0.id == id }
     }

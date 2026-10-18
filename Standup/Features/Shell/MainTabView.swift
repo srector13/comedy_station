@@ -53,6 +53,9 @@ struct MainTabView: View {
         .onChange(of: search.query) {
             search.queryChanged()
         }
+        .overlay {
+            LibraryFeedbackHUD()
+        }
         .task {
             // A query from launch arguments searches right away.
             if !search.term.isEmpty {
@@ -64,5 +67,5 @@ struct MainTabView: View {
 
 #Preview {
     MainTabView(catalog: MockCatalog())
-        .tint(Theme.accent)
+        .previewEnvironment()
 }

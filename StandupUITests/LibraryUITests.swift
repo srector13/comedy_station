@@ -1,0 +1,104 @@
+import XCTest
+
+/// Every Add to Library entry point writes to the App Library and shows the
+/// confirmation; the Library tab then lists what was added.
+final class LibraryUITests: StandupUITestCase {
+    /// The + on a special's page adds it, turns into a checkmark, and the
+    /// checkmark offers removal.
+    @MainActor
+    func testPlusButtonAddsAndRemovesASpecial() {
+        let app = launch(tab: "home", extra: ["-StandupRoute", "album:mock-al-lower"], dark: false)
+        let toggle = app.buttons["library.toggle"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 15))
+        XCTAssertEqual(toggle.label, "Add to Library")
+
+        toggle.tap()
+        XCTAssertTrue(element("library.feedback", in: app).waitForExistence(timeout: 5), "no Added to Library confirmation")
+        snap("30-added-to-library", dark: false, settle: 0.2)
+        XCTAssertTrue(waitForLabel(toggle, "In Library"))
+
+        app.tabBars.buttons["Library"].tap()
+        element("library.specials", in: app).tap()
+        XCTAssertTrue(element("library.special.mock-al-lower", in: app).waitForExistence(timeout: 10), "the special isn't in the library")
+
+        app.tabBars.buttons["Home"].tap()
+        XCTAssertTrue(toggle.waitForExistence(timeout: 10))
+        toggle.tap()
+        let remove = app.buttons["Remove from Library"]
+        XCTAssertTrue(remove.waitForExistence(timeout: 5), "no removal confirmation")
+        remove.tap()
+        XCTAssertTrue(waitForLabel(toggle, "Add to Library"))
+    }
+
+    /// Swiping a bit on a special's page adds just that bit.
+    @MainActor
+    func testSwipeAddsABit() {
+        let app = launch(tab: "home", extra: ["-StandupRoute", "album:mock-al-lower"], dark: false)
+        let row = element("album.track.2", in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: 15))
+        row.swipeLeft()
+        // Not the toolbar's +, which has the same label.
+        let add = app.buttons.matching(NSPredicate(format: "label == %@ AND identifier != %@", "Add to Library", "library.toggle")).firstMatch
+        XCTAssertTrue(add.waitForExistence(timeout: 5), "no swipe action")
+        add.tap()
+        XCTAssertTrue(element("library.feedback", in: app).waitForExistence(timeout: 5))
+
+        app.tabBars.buttons["Library"].tap()
+        element("library.bits", in: app).tap()
+        XCTAssertTrue(element("library.bit.mock-al-lower-3", in: app).waitForExistence(timeout: 10), "the bit isn't in the library")
+    }
+
+    /// Touch and hold a comedian in search results to add them.
+    @MainActor
+    func testContextMenuAddsAComedian() {
+        let app = launch(tab: "search", extra: ["-StandupSearch", "maya"], dark: false)
+        let result = element("result.artist.mock-ar-maya", in: app)
+        XCTAssertTrue(result.waitForExistence(timeout: 15))
+        result.press(forDuration: 1.2)
+        let add = app.buttons["Add to Library"]
+        XCTAssertTrue(add.waitForExistence(timeout: 5), "no context menu")
+        snap("31-context-menu", dark: false, settle: 0.3)
+        add.tap()
+        XCTAssertTrue(element("library.feedback", in: app).waitForExistence(timeout: 5))
+
+        app.tabBars.buttons["Library"].tap()
+        element("library.comedians", in: app).tap()
+        XCTAssertTrue(element("library.comedian.mock-ar-maya", in: app).waitForExistence(timeout: 10), "the comedian isn't in the library")
+    }
+
+    /// A filled library and each of its sections, light and dark.
+    @MainActor
+    func testLibraryScreens() {
+        let sections: [(name: String, row: String, anchor: String)] = [
+            ("33-library-comedians", "library.comedians", "library.comedian.mock-ar-maya"),
+            ("34-library-specials", "library.specials", "library.special.mock-al-lower"),
+            ("35-library-bits", "library.bits", "library.bit.mock-al-overthinking-4"),
+            ("36-library-recently-added", "library.recentlyAdded", ""),
+            ("37-library-downloads", "library.downloads", ""),
+        ]
+        for dark in [false, true] {
+            var app = launch(tab: "library", extra: ["-StandupLibrary", "seeded"], dark: dark)
+            XCTAssertTrue(element("library.comedians", in: app).waitForExistence(timeout: 15))
+            snap("32-library", dark: dark)
+            app.terminate()
+
+            for section in sections {
+                app = launch(tab: "library", extra: ["-StandupLibrary", "seeded"], dark: dark)
+                let row = element(section.row, in: app)
+                XCTAssertTrue(row.waitForExistence(timeout: 15))
+                row.tap()
+                if !section.anchor.isEmpty {
+                    XCTAssertTrue(element(section.anchor, in: app).waitForExistence(timeout: 10), "\(section.name): missing \(section.anchor)")
+                }
+                snap(section.name, dark: dark)
+                app.terminate()
+            }
+        }
+    }
+
+    @MainActor
+    private func waitForLabel(_ element: XCUIElement, _ label: String) -> Bool {
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", label), object: element)
+        return XCTWaiter.wait(for: [expectation], timeout: 5) == .completed
+    }
+}

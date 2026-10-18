@@ -10,15 +10,18 @@ final class AppEnvironment {
     let options: LaunchOptions
     let authGate: AuthGate
     let catalog: any CatalogProviding
+    let library: LibraryStore
 
     init(options: LaunchOptions) {
         self.options = options
         if options.useMockData {
             authGate = AuthGate(access: MockMusicAccess(scenario: options.accessScenario))
             catalog = MockCatalog()
+            library = .inMemory(seeded: options.seedLibrary)
         } else {
             authGate = AuthGate(access: LiveMusicAccess())
             catalog = MusicKitCatalog()
+            library = .onDisk()
         }
     }
 

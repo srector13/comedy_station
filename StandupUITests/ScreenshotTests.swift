@@ -3,11 +3,7 @@ import XCTest
 /// Drives the app in mock mode (no Apple Music needed) and attaches a
 /// screenshot of each screen to the result bundle. CI exports them with
 /// `scripts/export_screenshots.py` and uploads them as an artifact.
-final class ScreenshotTests: XCTestCase {
-    override func setUp() {
-        continueAfterFailure = false
-    }
-
+final class ScreenshotTests: StandupUITestCase {
     // MARK: Screens
 
     @MainActor
@@ -118,50 +114,5 @@ final class ScreenshotTests: XCTestCase {
         comedians.tap()
         XCTAssertTrue(app.navigationBars["Comedians"].waitForExistence(timeout: 10))
         snap("14-library-comedians-empty", dark: false)
-    }
-
-    // MARK: Helpers
-
-    // Each loop terminates the app itself before the next launch, as
-    // MyTeams' screenshot tests do: leaving it to launch() let XCUITest time
-    // out terminating the previous instance ("Failed to terminate").
-
-    @MainActor
-    private func launch(access: String = "ready", tab: String? = nil, extra: [String] = [], dark: Bool) -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchArguments = [
-            "-StandupMock", "YES",
-            "-StandupAccess", access,
-            "-StandupAppearance", dark ? "dark" : "light",
-        ]
-        if let tab {
-            app.launchArguments += ["-StandupTab", tab]
-        }
-        app.launchArguments += extra
-        app.launch()
-        return app
-    }
-
-    /// Any element with this accessibility identifier.
-    @MainActor
-    private func element(_ identifier: String, in app: XCUIApplication) -> XCUIElement {
-        app.descendants(matching: .any)[identifier].firstMatch
-    }
-
-    /// Any element whose label mentions `text` (rows combine their texts
-    /// into one label).
-    @MainActor
-    private func labelled(_ text: String, in app: XCUIApplication) -> XCUIElement {
-        app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
-    }
-
-    @MainActor
-    private func snap(_ name: String, dark: Bool) {
-        // Let transitions and glass settle.
-        Thread.sleep(forTimeInterval: 0.8)
-        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-        attachment.name = "\(name)-\(dark ? "dark" : "light")"
-        attachment.lifetime = .keepAlways
-        add(attachment)
     }
 }

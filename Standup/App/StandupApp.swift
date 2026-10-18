@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 @main
@@ -13,6 +14,8 @@ struct StandupApp: App {
             )
             .environment(environment.authGate)
             .environment(\.catalog, environment.catalog)
+            .environment(environment.library)
+            .modelContainer(environment.library.container)
             .tint(Theme.accent)
             .preferredColorScheme(environment.options.colorScheme)
         }
