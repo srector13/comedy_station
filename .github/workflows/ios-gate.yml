@@ -1,0 +1,135 @@
+name: iOS Gate
+
+# Every push: the library-write audit, a simulator build, the Release device
+# build that build-ipa.yml packages, unit tests, and the mock-mode screenshot
+# tests. The screenshots are uploaded as the standup-screenshots artifact.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - '**'
+
+jobs:
+  ios-gate:
+    # Standup targets iOS 27.0, so it needs the iOS 27 SDK: the xcode-27
+    # image. (MyTeams' macos-26 image defaults to Xcode 26.6.)
+    runs-on: xcode-27
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Audit (no Apple Music library writes)
+        run: scripts/audit_no_library_writes.sh
+
+      - name: Diagnostics
+        continue-on-error: true
+        run: |
+          xcodebuild -version
+          xcrun simctl list devices available
+
+      # Boot the simulator before the build, so the work iOS does after a
+      # fresh boot finishes while the build runs, not under the UI tests.
+      - name: Boot simulator
+        continue-on-error: true
+        shell: bash
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, re, sys
+          preferred = ["iPhone 18 Pro", "iPhone 17 Pro", "iPhone 17", "iPhone Air"]
+          best = None
+          for runtime, devices in json.load(sys.stdin)["devices"].items():
+              match = re.search(r"iOS-(\d+)-(\d+)(?:-(\d+))?$", runtime)
+              if not match:
+                  continue
+              version = tuple(int(part or 0) for part in match.groups())
+              for device in devices:
+                  name = device["name"]
+                  if not name.startswith("iPhone"):
+                      continue
+                  rank = preferred.index(name) if name in preferred else len(preferred)
+                  key = (version, -rank)
+                  if best is None or key > best[0]:
+                      best = (key, device["udid"], name)
+          print(best[1] if best else "")
+          ')
+          [ -n "$UDID" ] || { echo "No iPhone simulator found"; exit 0; }
+          echo "Booting $UDID"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          # Clean status bar for screenshots.
+          xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4 || true
+          echo "SIM_UDID=$UDID" >> "$GITHUB_ENV"
+
+      - name: Build for testing (simulator)
+        shell: bash
+        run: |
+          set -o pipefail
+          DESTINATION="platform=iOS Simulator,name=iPhone 17,OS=latest"
+          [ -n "${SIM_UDID:-}" ] && DESTINATION="platform=iOS Simulator,id=$SIM_UDID"
+          echo "TEST_DESTINATION=$DESTINATION" >> "$GITHUB_ENV"
+          xcodebuild build-for-testing \
+            -project Standup.xcodeproj -scheme Standup \
+            -destination "$DESTINATION" -derivedDataPath ./dd-sim \
+            -skipPackagePluginValidation -skipMacroValidation \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee build-for-testing.log
+
+      # The exact build command of build-ipa.yml, so the IPA workflow's build
+      # step is proven on every push.
+      - name: Release device build (unsigned, as build-ipa.yml)
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Standup.xcodeproj -scheme Standup -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath ./dd \
+            -skipPackagePluginValidation -skipMacroValidation \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            2>&1 | tee build-release.log
+          test -d dd/Build/Products/Release-iphoneos/Standup.app
+
+      - name: Unit tests
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild test-without-building \
+            -project Standup.xcodeproj -scheme Standup \
+            -destination "$TEST_DESTINATION" -derivedDataPath ./dd-sim \
+            -only-testing:StandupTests -resultBundlePath unit.xcresult \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee unit-tests.log
+
+      - name: Screenshot tests
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild test-without-building \
+            -project Standup.xcodeproj -scheme Standup \
+            -destination "$TEST_DESTINATION" -derivedDataPath ./dd-sim \
+            -only-testing:StandupUITests -resultBundlePath ui.xcresult \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee ui-tests.log
+
+      - name: Export screenshots
+        if: always()
+        continue-on-error: true
+        run: |
+          [ -d ui.xcresult ] && python3 scripts/export_screenshots.py ui.xcresult screenshots
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: standup-screenshots-${{ github.run_number }}
+          path: screenshots/*.png
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-gate-logs-${{ github.run_number }}
+          path: |
+            ${{ github.workspace }}/*.log
+          retention-days: 7
