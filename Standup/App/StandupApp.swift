@@ -16,6 +16,7 @@ struct StandupApp: App {
             .environment(\.catalog, environment.catalog)
             .environment(environment.library)
             .modelContainer(environment.library.container)
+            .environment(\.libraryFeedbackDuration, environment.options.feedbackSeconds ?? 1.6)
             .tint(Theme.accent)
             .preferredColorScheme(environment.options.colorScheme)
         }

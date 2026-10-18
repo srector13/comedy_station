@@ -21,6 +21,8 @@ class StandupUITestCase: XCTestCase {
             "-StandupMock", "YES",
             "-StandupAccess", access,
             "-StandupAppearance", dark ? "dark" : "light",
+            // Long enough that a query after a tap still finds it.
+            "-StandupFeedbackSeconds", "6",
         ]
         if let tab {
             app.launchArguments += ["-StandupTab", tab]
@@ -51,5 +53,25 @@ class StandupUITestCase: XCTestCase {
         attachment.name = "\(name)-\(dark ? "dark" : "light")"
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    /// Waits for `element`; on failure attaches the app's accessibility
+    /// hierarchy and a screenshot, so CI shows what was on screen.
+    @MainActor
+    @discardableResult
+    func require(_ element: XCUIElement, in app: XCUIApplication, timeout: TimeInterval = 10, _ message: String, file: StaticString = #filePath, line: UInt = #line) -> Bool {
+        if element.waitForExistence(timeout: timeout) {
+            return true
+        }
+        let hierarchy = XCTAttachment(string: app.debugDescription)
+        hierarchy.name = "failure-hierarchy-\(name)"
+        hierarchy.lifetime = .keepAlways
+        add(hierarchy)
+        let screen = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        screen.name = "failure-screen-\(name)"
+        screen.lifetime = .keepAlways
+        add(screen)
+        XCTFail(message, file: file, line: line)
+        return false
     }
 }

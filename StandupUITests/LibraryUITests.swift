@@ -13,19 +13,19 @@ final class LibraryUITests: StandupUITestCase {
         XCTAssertEqual(toggle.label, "Add to Library")
 
         toggle.tap()
-        XCTAssertTrue(element("library.feedback", in: app).waitForExistence(timeout: 5), "no Added to Library confirmation")
-        snap("30-added-to-library", dark: false, settle: 0.2)
+        require(element("library.feedback", in: app), in: app, timeout: 5, "no Added to Library confirmation")
+        snap("30a-added-to-library", dark: false, settle: 0.2)
         XCTAssertTrue(waitForLabel(toggle, "In Library"))
 
         app.tabBars.buttons["Library"].tap()
         element("library.specials", in: app).tap()
-        XCTAssertTrue(element("library.special.mock-al-lower", in: app).waitForExistence(timeout: 10), "the special isn't in the library")
+        require(element("library.special.mock-al-lower", in: app), in: app, "the special isn't in the library")
 
         app.tabBars.buttons["Home"].tap()
         XCTAssertTrue(toggle.waitForExistence(timeout: 10))
         toggle.tap()
         let remove = app.buttons["Remove from Library"]
-        XCTAssertTrue(remove.waitForExistence(timeout: 5), "no removal confirmation")
+        require(remove, in: app, timeout: 5, "no removal confirmation")
         remove.tap()
         XCTAssertTrue(waitForLabel(toggle, "Add to Library"))
     }
@@ -36,16 +36,21 @@ final class LibraryUITests: StandupUITestCase {
         let app = launch(tab: "home", extra: ["-StandupRoute", "album:mock-al-lower"], dark: false)
         let row = element("album.track.2", in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 15))
-        row.swipeLeft()
+        // A slow partial drag reveals the action. (A quick swipeLeft() is a
+        // full swipe, which runs the action at once; that adds the bit too.)
+        row.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5))
+            .press(forDuration: 0.05, thenDragTo: row.coordinate(withNormalizedOffset: CGVector(dx: 0.45, dy: 0.5)))
         // Not the toolbar's +, which has the same label.
         let add = app.buttons.matching(NSPredicate(format: "label == %@ AND identifier != %@", "Add to Library", "library.toggle")).firstMatch
-        XCTAssertTrue(add.waitForExistence(timeout: 5), "no swipe action")
-        add.tap()
-        XCTAssertTrue(element("library.feedback", in: app).waitForExistence(timeout: 5))
+        if add.waitForExistence(timeout: 3) {
+            snap("30b-swipe-to-add", dark: false, settle: 0.2)
+            add.tap()
+        }
+        require(element("library.feedback", in: app), in: app, timeout: 5, "no Added to Library confirmation")
 
         app.tabBars.buttons["Library"].tap()
         element("library.bits", in: app).tap()
-        XCTAssertTrue(element("library.bit.mock-al-lower-3", in: app).waitForExistence(timeout: 10), "the bit isn't in the library")
+        require(element("library.bit.mock-al-lower-3", in: app), in: app, "the bit isn't in the library")
     }
 
     /// Touch and hold a comedian in search results to add them.
@@ -56,14 +61,14 @@ final class LibraryUITests: StandupUITestCase {
         XCTAssertTrue(result.waitForExistence(timeout: 15))
         result.press(forDuration: 1.2)
         let add = app.buttons["Add to Library"]
-        XCTAssertTrue(add.waitForExistence(timeout: 5), "no context menu")
-        snap("31-context-menu", dark: false, settle: 0.3)
+        require(add, in: app, timeout: 5, "no context menu")
+        snap("30c-context-menu", dark: false, settle: 0.3)
         add.tap()
-        XCTAssertTrue(element("library.feedback", in: app).waitForExistence(timeout: 5))
+        require(element("library.feedback", in: app), in: app, timeout: 5, "no Added to Library confirmation")
 
         app.tabBars.buttons["Library"].tap()
         element("library.comedians", in: app).tap()
-        XCTAssertTrue(element("library.comedian.mock-ar-maya", in: app).waitForExistence(timeout: 10), "the comedian isn't in the library")
+        require(element("library.comedian.mock-ar-maya", in: app), in: app, "the comedian isn't in the library")
     }
 
     /// A filled library and each of its sections, light and dark.

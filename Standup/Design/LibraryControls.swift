@@ -92,6 +92,7 @@ extension View {
 struct LibraryFeedbackHUD: View {
     @Environment(LibraryStore.self) private var library
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.libraryFeedbackDuration) private var duration
 
     var body: some View {
         ZStack {
@@ -111,7 +112,8 @@ struct LibraryFeedbackHUD: View {
                 .accessibilityIdentifier("library.feedback")
                 .task(id: feedback.id) {
                     AccessibilityNotification.Announcement(feedback.message).post()
-                    try? await Task.sleep(for: .seconds(1.4))
+                    // Cancelled means a newer confirmation replaced this one.
+                    guard (try? await Task.sleep(for: .seconds(duration))) != nil else { return }
                     withAnimation(.easeOut(duration: 0.25)) {
                         library.dismissFeedback(feedback.id)
                     }
@@ -122,4 +124,10 @@ struct LibraryFeedbackHUD: View {
         .sensoryFeedback(.success, trigger: library.feedback?.id) { _, new in new != nil }
         .allowsHitTesting(false)
     }
+}
+
+extension EnvironmentValues {
+    /// How long the library confirmation stays up, in seconds. UI tests
+    /// lengthen it (`-StandupFeedbackSeconds`) so they can see it.
+    @Entry var libraryFeedbackDuration: Double = 1.6
 }
