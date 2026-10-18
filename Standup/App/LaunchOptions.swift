@@ -7,6 +7,8 @@ import SwiftUI
 ///     -StandupAccess noSubscription     which gate state the mock produces
 ///     -StandupAppearance dark           force light or dark
 ///     -StandupTab library               open on a tab
+///     -StandupSearch maya               start the search tab with a query
+///     -StandupRoute album:<id>          open a page on the first tab (mock)
 ///
 /// Arguments of the form `-Key value` land in UserDefaults' argument domain.
 struct LaunchOptions: Equatable {
@@ -18,6 +20,8 @@ struct LaunchOptions: Equatable {
     var accessScenario: AccessScenario = .ready
     var colorScheme: ColorScheme?
     var initialTab: AppTab = .home
+    var searchQuery: String?
+    var route: String?
 
     /// Options from `value(key)`, the launch argument for each key.
     init(value: (String) -> String?) {
@@ -29,6 +33,8 @@ struct LaunchOptions: Equatable {
         default: nil
         }
         initialTab = value("StandupTab").flatMap(AppTab.init(rawValue:)) ?? .home
+        searchQuery = value("StandupSearch").flatMap { $0.isEmpty ? nil : $0 }
+        route = value("StandupRoute").flatMap { $0.isEmpty ? nil : $0 }
     }
 
     init() {

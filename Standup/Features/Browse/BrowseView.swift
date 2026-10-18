@@ -13,6 +13,7 @@ struct BrowseView: View {
                 .padding(.top, 80)
             }
             .navigationTitle("Browse")
+            .comedyDestinations()
         }
     }
 }

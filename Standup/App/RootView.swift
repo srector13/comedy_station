@@ -4,8 +4,12 @@ import SwiftUI
 /// plays catalog content, then the tabs.
 struct RootView: View {
     var initialTab: AppTab = .home
+    /// Launch-argument state for UI tests: a search query, a page to open.
+    var initialQuery = ""
+    var initialRoute: Route?
 
     @Environment(AuthGate.self) private var gate
+    @Environment(\.catalog) private var catalog
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -16,7 +20,7 @@ struct RootView: View {
                 Color(.systemBackground)
                     .ignoresSafeArea()
             case .ready:
-                MainTabView(initialTab: initialTab)
+                MainTabView(catalog: catalog, initialTab: initialTab, initialQuery: initialQuery, initialRoute: initialRoute)
                     .transition(.opacity)
             default:
                 AccessGateView(state: gate.state)

@@ -20,7 +20,8 @@ Rules 1 and 2 are checked by `scripts/audit_no_library_writes.sh`, locally and i
 Standup/
   App/          entry point, launch options, environment, root gate
   Design/       Theme (the one accent color), shared components
-  Services/     Apple Music access, auth gate (catalog, player, library to come)
+  Models/       catalog value types (ComedyArtist, ComedyAlbum, ComedyTrack)
+  Services/     Apple Music access, auth gate, ComedyFilter, MusicKit catalog
   Features/     one folder per screen
   Mock/         mock Apple Music answers and data for previews, tests, CI
   Resources/    Info.plist, asset catalog
@@ -38,6 +39,8 @@ Launch arguments (also used by the UI tests):
 | `-StandupAccess` | `notDetermined`, `denied`, `restricted`, `noSubscription`, `unavailable`, `ready` |
 | `-StandupAppearance` | `light`, `dark` |
 | `-StandupTab` | `home`, `browse`, `library`, `search` |
+| `-StandupSearch` | a query to search for at launch |
+| `-StandupRoute` | `album:<id>` or `artist:<id>`: open a mock page on the first tab |
 
 ## CI
 

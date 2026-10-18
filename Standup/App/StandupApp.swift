@@ -2,14 +2,19 @@ import SwiftUI
 
 @main
 struct StandupApp: App {
-    @State private var environment = AppEnvironment.make()
+    private let environment = AppEnvironment.shared
 
     var body: some Scene {
         WindowGroup {
-            RootView(initialTab: environment.options.initialTab)
-                .environment(environment.authGate)
-                .tint(Theme.accent)
-                .preferredColorScheme(environment.options.colorScheme)
+            RootView(
+                initialTab: environment.options.initialTab,
+                initialQuery: environment.options.searchQuery ?? "",
+                initialRoute: environment.initialRoute
+            )
+            .environment(environment.authGate)
+            .environment(\.catalog, environment.catalog)
+            .tint(Theme.accent)
+            .preferredColorScheme(environment.options.colorScheme)
         }
     }
 }

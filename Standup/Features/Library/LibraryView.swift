@@ -61,6 +61,7 @@ struct LibraryView: View {
             .navigationDestination(for: LibraryCategory.self) { category in
                 LibraryCategoryView(category: category)
             }
+            .comedyDestinations()
         }
     }
 }
