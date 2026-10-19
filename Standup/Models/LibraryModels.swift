@@ -137,6 +137,8 @@ final class PlaybackProgress {
     var artworkTemplate: String?
     var artworkRGB: Int?
     var trackCount: Int
+    /// The whole set's length, for "N min left".
+    var totalDuration: TimeInterval = 0
 
     init(
         itemID: String, isAlbum: Bool, lastTrackIndex: Int = 0, lastPosition: TimeInterval = 0,

@@ -18,6 +18,8 @@ actor CountingCatalog: CatalogProviding {
     func album(id: String) async throws -> AlbumDetail { try await base.album(id: id) }
     func artist(id: String) async throws -> ArtistDetail { try await base.artist(id: id) }
     func comedian(id: String) async throws -> ComedyArtist { try await base.comedian(id: id) }
+    func charts() async throws -> ComedyCharts { try await base.charts() }
+    func playlist(id: String) async throws -> PlaylistDetail { try await base.playlist(id: id) }
 }
 
 @MainActor

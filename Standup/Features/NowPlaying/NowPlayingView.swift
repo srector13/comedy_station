@@ -264,6 +264,8 @@ struct TransportControls: View {
         }
         .font(.title)
         .buttonStyle(.plain)
+        // Five controls in a row: past this size they'd no longer fit.
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 
     private func control(_ label: String, _ symbol: String, id: String, action: @escaping @MainActor () async -> Void) -> some View {

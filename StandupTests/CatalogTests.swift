@@ -136,3 +136,37 @@ struct ResponseCacheTests {
         #expect(Format.plainText("<i>Live</i> at home<br/>Two nights") == "Live at home\nTwo nights")
     }
 }
+
+struct ChartsAndPlaylistsTests {
+    let catalog = MockCatalog()
+
+    @Test func chartsDropEveryDecoy() async throws {
+        let charts = try await catalog.charts()
+        #expect(!charts.topSpecials.isEmpty)
+        #expect(charts.topSpecials.allSatisfy { ComedyFilter.isComedy($0.genreNames) })
+        #expect(!charts.topSpecials.contains { $0.title == "Live at the Arena" || $0.title.hasPrefix("Comedy of Errors") })
+        #expect(!charts.topBits.contains { $0.albumID == "mock-al-summer" })
+        #expect(charts.topSpecials.first?.title == "Lower Your Expectations")
+    }
+
+    @Test func newSpecialsAreRecentAndNewestFirst() async throws {
+        let charts = try await catalog.charts()
+        let now = ISO8601DateFormatter().date(from: "2026-10-19T12:00:00Z")!
+        let new = charts.newSpecials(now: now)
+        #expect(new.map(\.title) == ["Lower Your Expectations", "Leftovers", "Parking Lot Philosophy"])
+    }
+
+    @Test func playlistDropsTheNonComedySong() async throws {
+        let detail = try await catalog.playlist(id: "mock-pl-clean")
+        #expect(detail.tracks.count == 3)
+        #expect(!detail.tracks.contains { $0.title.contains("Radio Edit") })
+    }
+
+    @Test func remainingTimeFollowsProgress() {
+        let snapshot = ProgressSnapshot(
+            itemID: "x", isAlbum: true, lastTrackIndex: 0, lastPosition: 0, lastPlayed: .now, finished: false,
+            fractionComplete: 0.25, title: "", artistName: "", artwork: ArtworkRef(), trackCount: 1, totalDuration: 3600
+        )
+        #expect(snapshot.remaining == 2700)
+    }
+}

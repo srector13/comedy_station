@@ -90,6 +90,34 @@ actor MusicKitCatalog: CatalogProviding {
         }
     }
 
+    func charts() async throws -> ComedyCharts {
+        try await cached("charts") {
+            // Genre ID 3 is used here and only here (rule 3); every result
+            // still goes through the genre-name filter.
+            let genreRequest = MusicCatalogResourceRequest<Genre>(matching: \.id, equalTo: MusicItemID(ComedyFilter.comedyGenreID))
+            guard let comedy = try await genreRequest.response().items.first else { throw CatalogError.notFound }
+            var request = MusicCatalogChartsRequest(genre: comedy, kinds: [.mostPlayed], types: [Album.self, Song.self, Playlist.self])
+            request.limit = 40
+            let response = try await request.response()
+            let specials = ComedyFilter.keep((response.albumCharts.first?.items ?? []).map(ComedyAlbum.init))
+            let bits = try await comedyBits(Array(response.songCharts.first?.items ?? []))
+            let playlists = (response.playlistCharts.first?.items ?? []).map(ComedyPlaylist.init)
+            return ComedyCharts(topSpecials: specials, topBits: bits, playlists: playlists)
+        }
+    }
+
+    func playlist(id: String) async throws -> PlaylistDetail {
+        try await cached("playlist:\(id)") {
+            var request = MusicCatalogResourceRequest<Playlist>(matching: \.id, equalTo: MusicItemID(id))
+            request.properties = [.tracks]
+            guard let playlist = try await request.response().items.first else { throw CatalogError.notFound }
+            let songs: [Song] = (playlist.tracks ?? []).compactMap { track in
+                if case .song(let song) = track { song } else { nil }
+            }
+            return PlaylistDetail(playlist: ComedyPlaylist(playlist), tracks: try await comedyBits(songs))
+        }
+    }
+
     // MARK: Helpers
 
     /// The songs that are on a comedy album. One batched request loads every
@@ -149,6 +177,18 @@ extension ComedyArtist {
             name: artist.name,
             artwork: ArtworkRef(artist.artwork, id: artist.id),
             genreNames: artist.genreNames ?? []
+        )
+    }
+}
+
+extension ComedyPlaylist {
+    init(_ playlist: Playlist) {
+        self.init(
+            id: playlist.id.rawValue,
+            name: playlist.name,
+            curatorName: playlist.curatorName,
+            artwork: ArtworkRef(playlist.artwork, id: playlist.id),
+            summary: (playlist.shortDescription ?? playlist.standardDescription).map(Format.plainText)
         )
     }
 }

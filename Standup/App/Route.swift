@@ -4,6 +4,7 @@ import SwiftUI
 enum Route: Hashable {
     case artist(ComedyArtist)
     case album(ComedyAlbum)
+    case playlist(ComedyPlaylist)
 }
 
 extension View {
@@ -14,6 +15,7 @@ extension View {
             switch route {
             case .artist(let artist): ArtistView(artist: artist)
             case .album(let album): AlbumView(album: album)
+            case .playlist(let playlist): PlaylistView(playlist: playlist)
             }
         }
     }

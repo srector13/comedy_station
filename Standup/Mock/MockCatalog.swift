@@ -56,6 +56,21 @@ struct MockCatalog: CatalogProviding {
         return artist
     }
 
+    func charts() async throws -> ComedyCharts {
+        let albums = MockData.chartAlbumIDs.compactMap(MockData.album(id:))
+        let bits = MockData.chartBitPicks.compactMap { MockData.tracks["mock-al-\($0.0)"]?[safe: $0.1] }
+        return ComedyCharts(
+            topSpecials: ComedyFilter.keep(albums),
+            topBits: ComedyFilter.keep(bits),
+            playlists: MockData.playlists
+        )
+    }
+
+    func playlist(id: String) async throws -> PlaylistDetail {
+        guard let playlist = MockData.playlists.first(where: { $0.id == id }) else { throw CatalogError.notFound }
+        return PlaylistDetail(playlist: playlist, tracks: ComedyFilter.keep(MockData.playlistTracks(id)))
+    }
+
     /// A `-StandupRoute` launch value ("album:<id>" or "artist:<id>") as a
     /// route into mock data.
     static func route(for value: String) -> Route? {
@@ -64,6 +79,7 @@ struct MockCatalog: CatalogProviding {
         switch parts[0] {
         case "album": return MockData.album(id: parts[1]).map(Route.album)
         case "artist": return MockData.artist(id: parts[1]).map(Route.artist)
+        case "playlist": return MockData.playlists.first { $0.id == parts[1] }.map(Route.playlist)
         default: return nil
         }
     }

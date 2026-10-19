@@ -197,3 +197,30 @@ struct PlayerServiceTests {
         #expect(abs(saved.lastPosition - 30) < 0.01)
     }
 }
+
+@MainActor
+struct PlaylistPlaybackTests {
+    @Test func playlistPlaysItsComedyBitsWithoutResume() async {
+        let store = MemoryProgressStore()
+        let player = PlayerService(engine: MockPlaybackEngine(), catalog: MockCatalog(), progressStore: store)
+        let playlist = MockData.playlists.first { $0.id == "mock-pl-clean" }!
+        await player.play(playlist: playlist, startIndex: 1)
+        #expect(player.session?.title == "Clean Comedy")
+        #expect(player.session?.tracks.count == 3)
+        #expect(player.index == 1)
+        #expect(player.session?.progressID == nil)
+        player.pause()
+        #expect(store.saved.isEmpty)
+    }
+
+    @Test func resumingFromSavedProgressUsesTheStub() async {
+        let store = MemoryProgressStore()
+        let player = PlayerService(engine: MockPlaybackEngine(), catalog: MockCatalog(), progressStore: store)
+        let seed = MockData.progressSeed[0]
+        store.saveProgress(seed)
+        await player.handle(PlayRequest(item: .album(seed.albumStub), resume: true))
+        #expect(player.index == seed.lastTrackIndex)
+        #expect(abs(player.elapsed - seed.lastPosition) < 0.01)
+        #expect(player.session?.album?.genreNames == ["Comedy"])
+    }
+}

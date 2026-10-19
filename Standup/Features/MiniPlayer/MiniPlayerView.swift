@@ -74,6 +74,8 @@ struct MiniPlayerView: View {
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 16)
+        // The accessory's height is fixed, as the tab bar's is.
+        .dynamicTypeSize(...DynamicTypeSize.xxLarge)
         .matchedTransitionSource(id: "nowPlaying", in: namespace)
     }
 }

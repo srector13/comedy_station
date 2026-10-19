@@ -25,6 +25,7 @@ struct ComedianRow: View {
 /// A special in a list: artwork, title, comedian and year.
 struct SpecialRow: View {
     let album: ComedyAlbum
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         HStack(spacing: 12) {
@@ -35,13 +36,13 @@ struct SpecialRow: View {
                 HStack(spacing: 4) {
                     Text(album.title)
                         .font(.body)
-                        .lineLimit(1)
+                        .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
                     if album.isExplicit { ExplicitBadge() }
                 }
                 Text(["Special", album.artistName, Format.year(album.releaseDate)].compactMap { $0 }.joined(separator: " · "))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
             }
         }
         .accessibilityElement(children: .combine)
@@ -52,8 +53,12 @@ struct SpecialRow: View {
 struct BitRow: View {
     let track: ComedyTrack
     var subtitle: String?
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
+        // At accessibility sizes the duration moves under the title, which
+        // gets the full width.
+        let large = typeSize.isAccessibilitySize
         HStack(spacing: 12) {
             ArtworkView(track.artwork, placeholder: .poster(track.albumTitle ?? track.title), pixels: 160)
                 .frame(width: 48, height: 48)
@@ -62,19 +67,27 @@ struct BitRow: View {
                 HStack(spacing: 4) {
                     Text(track.title)
                         .font(.body)
-                        .lineLimit(1)
+                        .lineLimit(large ? 3 : 1)
                     if track.isExplicit { ExplicitBadge() }
                 }
                 Text(subtitle ?? "Bit · \(track.artistName)")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(large ? 2 : 1)
+                if large {
+                    Text(Format.trackTime(track.duration))
+                        .font(.subheadline)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer(minLength: 8)
-            Text(Format.trackTime(track.duration))
-                .font(.subheadline)
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
+            if !large {
+                Text(Format.trackTime(track.duration))
+                    .font(.subheadline)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
         }
         .accessibilityElement(children: .combine)
     }
@@ -85,6 +98,7 @@ struct BitRow: View {
 struct SpecialCard: View {
     let album: ComedyAlbum
     var width: CGFloat? = 160
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -94,7 +108,7 @@ struct SpecialCard: View {
             Text(album.title)
                 .font(.subheadline)
                 .foregroundStyle(.primary)
-                .lineLimit(1)
+                .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
             if let year = Format.year(album.releaseDate) {
                 Text(year)
                     .font(.subheadline)

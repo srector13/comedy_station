@@ -114,11 +114,49 @@ jobs:
             -collect-test-diagnostics never \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee ui-tests.log
 
+      # The iPad layouts: the same build, on an iPad simulator.
+      - name: iPad screenshot tests
+        shell: bash
+        run: |
+          set -o pipefail
+          IPAD=$(xcrun simctl list devices available -j | python3 -c '
+          import json, re, sys
+          preferred = ["iPad Air 11-inch (M4)", "iPad Pro 11-inch (M5)", "iPad (A16)"]
+          best = None
+          for runtime, devices in json.load(sys.stdin)["devices"].items():
+              match = re.search(r"iOS-(\d+)-(\d+)(?:-(\d+))?$", runtime)
+              if not match:
+                  continue
+              version = tuple(int(part or 0) for part in match.groups())
+              for device in devices:
+                  name = device["name"]
+                  if not name.startswith("iPad"):
+                      continue
+                  rank = preferred.index(name) if name in preferred else len(preferred)
+                  key = (version, -rank)
+                  if best is None or key > best[0]:
+                      best = (key, device["udid"])
+          print(best[1] if best else "")
+          ')
+          [ -n "$IPAD" ] || { echo "::warning::No iPad simulator; skipping iPad screenshots"; exit 0; }
+          xcrun simctl boot "$IPAD" || true
+          xcrun simctl bootstatus "$IPAD" -b
+          xcrun simctl status_bar "$IPAD" override --time "9:41" --batteryState charged --batteryLevel 100 --wifiBars 3 || true
+          xcodebuild test-without-building \
+            -project Standup.xcodeproj -scheme Standup \
+            -destination "platform=iOS Simulator,id=$IPAD" -derivedDataPath ./dd-sim \
+            -only-testing:StandupUITests/IPadScreenshotTests -resultBundlePath ipad.xcresult \
+            -collect-test-diagnostics never \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee ipad-tests.log
+
       - name: Export screenshots
         if: always()
         continue-on-error: true
         run: |
           [ -d ui.xcresult ] && python3 scripts/export_screenshots.py ui.xcresult screenshots
+          if [ -d ipad.xcresult ]; then
+            python3 scripts/export_screenshots.py ipad.xcresult screenshots-ipad && mv screenshots-ipad/* screenshots/
+          fi
 
       - name: Upload screenshots
         if: always()

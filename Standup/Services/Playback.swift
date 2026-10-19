@@ -5,6 +5,7 @@ struct PlayRequest: Equatable, Sendable {
     enum Item: Equatable, Sendable {
         case album(ComedyAlbum)
         case artist(ComedyArtist)
+        case playlist(ComedyPlaylist)
     }
 
     var item: Item
@@ -60,6 +61,13 @@ struct ProgressSnapshot: Equatable, Sendable {
     var artistName: String
     var artwork: ArtworkRef
     var trackCount: Int
+    /// The whole set's length.
+    var totalDuration: TimeInterval = 0
+
+    /// Time left in the set.
+    var remaining: TimeInterval {
+        max(totalDuration * (1 - fractionComplete), 0)
+    }
 }
 
 /// Saved progress, by special. The App Library (`LibraryStore`) keeps it in
@@ -68,4 +76,12 @@ struct ProgressSnapshot: Equatable, Sendable {
 protocol ProgressStoring: AnyObject {
     func progress(for itemID: String) -> ProgressSnapshot?
     func saveProgress(_ snapshot: ProgressSnapshot)
+}
+
+extension ProgressSnapshot {
+    /// The special to resume, as far as saved progress knows it; the player
+    /// re-loads (and re-checks) it from the catalog.
+    var albumStub: ComedyAlbum {
+        ComedyAlbum(id: itemID, title: title, artistName: artistName, artwork: artwork, trackCount: trackCount, genreNames: [])
+    }
 }

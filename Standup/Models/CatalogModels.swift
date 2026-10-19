@@ -121,6 +121,42 @@ struct ArtistDetail: Hashable, Sendable {
     var similar: [ComedyArtist]
 }
 
+/// A comedy playlist. Playlists carry no genre names, so the app only
+/// shows ones from the Comedy-genre chart, and filters their bits.
+struct ComedyPlaylist: Identifiable, Hashable, Sendable, Codable {
+    var id: String
+    var name: String
+    var curatorName: String?
+    var artwork: ArtworkRef
+    var summary: String?
+}
+
+struct PlaylistDetail: Hashable, Sendable {
+    var playlist: ComedyPlaylist
+    /// Only the bits on comedy specials.
+    var tracks: [ComedyTrack]
+}
+
+/// The Comedy charts (genre 3), filtered.
+struct ComedyCharts: Hashable, Sendable {
+    /// Most played specials, in chart order.
+    var topSpecials: [ComedyAlbum] = []
+    /// Most played bits, in chart order.
+    var topBits: [ComedyTrack] = []
+    var playlists: [ComedyPlaylist] = []
+
+    /// Charted specials from the last two years, newest first: MusicKit
+    /// has no new-releases-by-genre request.
+    func newSpecials(now: Date = .now) -> [ComedyAlbum] {
+        let cutoff = now.addingTimeInterval(-2 * 365 * 86_400)
+        return topSpecials
+            .filter { ($0.releaseDate ?? .distantPast) >= cutoff }
+            .sorted { ($0.releaseDate ?? .distantPast) > ($1.releaseDate ?? .distantPast) }
+    }
+
+    var isEmpty: Bool { topSpecials.isEmpty && topBits.isEmpty && playlists.isEmpty }
+}
+
 struct SearchResults: Hashable, Sendable {
     var comedians: [ComedyArtist] = []
     var specials: [ComedyAlbum] = []

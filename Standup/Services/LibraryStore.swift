@@ -58,6 +58,9 @@ final class LibraryStore {
         let store = LibraryStore(container: try! ModelContainer(for: schema, configurations: configuration), catalog: catalog)
         if seeded {
             store.seed(MockData.librarySeed)
+            for snapshot in MockData.progressSeed {
+                store.saveProgress(snapshot)
+            }
         }
         return store
     }
@@ -219,19 +222,24 @@ final class LibraryStore {
 
 // MARK: Playback progress
 
+extension PlaybackProgress {
+    var snapshot: ProgressSnapshot {
+        ProgressSnapshot(
+            itemID: itemID, isAlbum: isAlbum,
+            lastTrackIndex: lastTrackIndex, lastPosition: lastPosition,
+            lastPlayed: lastPlayed, finished: finished,
+            fractionComplete: fractionComplete,
+            title: title, artistName: artistName,
+            artwork: ArtworkRef(template: artworkTemplate, backgroundRGB: artworkRGB, seed: ArtworkRef.seed(for: itemID)),
+            trackCount: trackCount,
+            totalDuration: totalDuration
+        )
+    }
+}
+
 extension LibraryStore: ProgressStoring {
     func progress(for itemID: String) -> ProgressSnapshot? {
-        progressRecord(itemID).map { record in
-            ProgressSnapshot(
-                itemID: record.itemID, isAlbum: record.isAlbum,
-                lastTrackIndex: record.lastTrackIndex, lastPosition: record.lastPosition,
-                lastPlayed: record.lastPlayed, finished: record.finished,
-                fractionComplete: record.fractionComplete,
-                title: record.title, artistName: record.artistName,
-                artwork: ArtworkRef(template: record.artworkTemplate, backgroundRGB: record.artworkRGB, seed: ArtworkRef.seed(for: record.itemID)),
-                trackCount: record.trackCount
-            )
-        }
+        progressRecord(itemID)?.snapshot
     }
 
     func saveProgress(_ snapshot: ProgressSnapshot) {
@@ -251,6 +259,14 @@ extension LibraryStore: ProgressStoring {
         record.artworkTemplate = snapshot.artwork.template
         record.artworkRGB = snapshot.artwork.backgroundRGB
         record.trackCount = snapshot.trackCount
+        record.totalDuration = snapshot.totalDuration
+        save()
+    }
+
+    /// Takes a special off Continue Listening (it starts over next time).
+    func removeProgress(for itemID: String) {
+        guard let record = progressRecord(itemID) else { return }
+        context.delete(record)
         save()
     }
 

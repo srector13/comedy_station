@@ -202,24 +202,36 @@ struct AlbumView: View {
 struct TrackRow: View {
     let number: Int
     let track: ComedyTrack
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
+        let large = typeSize.isAccessibilitySize
         HStack(spacing: 14) {
             Text("\(number)")
                 .font(.body)
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
                 .frame(minWidth: 22, alignment: .trailing)
-            HStack(spacing: 4) {
-                Text(track.title)
-                    .lineLimit(2)
-                if track.isExplicit { ExplicitBadge() }
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 4) {
+                    Text(track.title)
+                        .lineLimit(large ? 4 : 2)
+                    if track.isExplicit { ExplicitBadge() }
+                }
+                if large {
+                    Text(Format.trackTime(track.duration))
+                        .font(.subheadline)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer(minLength: 8)
-            Text(Format.trackTime(track.duration))
-                .font(.subheadline)
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
+            if !large {
+                Text(Format.trackTime(track.duration))
+                    .font(.subheadline)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(.vertical, 6)
         .contentShape(.rect)

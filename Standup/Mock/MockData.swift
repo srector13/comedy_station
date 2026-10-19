@@ -39,6 +39,31 @@ enum MockData {
         album("laundromat"): "Taped in an actual laundromat, between spin cycles.",
     ]
 
+    /// Comedy-genre chart playlists. "Clean Comedy" carries a pop song,
+    /// which the playlist page must drop.
+    static let playlists: [ComedyPlaylist] = [
+        playlist("essentials", "Stand-Up Essentials", "The sets every comedy fan should know."),
+        playlist("clean", "Clean Comedy", "Laughs for the whole car."),
+        playlist("crowdwork", "Crowd Work", "When the front row talks back."),
+        playlist("new", "New in Comedy", "Fresh specials, updated weekly."),
+    ]
+
+    /// Each playlist's bits by ID, decoys included.
+    static func playlistTracks(_ id: String) -> [ComedyTrack] {
+        let picks: [(String, Int)] = switch id {
+        case "mock-pl-essentials": [("lower", 2), ("parking", 1), ("laundromat", 3), ("leftovers", 4), ("customer", 2), ("overthinking", 5)]
+        case "mock-pl-clean": [("smalltalk", 2), ("summer", 0), ("momsaid", 3), ("groupchat", 1)]
+        case "mock-pl-crowdwork": [("laundromat", 1), ("parking", 4), ("lower", 6)]
+        default: [("lower", 1), ("leftovers", 2), ("parking", 3)]
+        }
+        return picks.compactMap { tracks[album($0.0)]?[safe: $0.1] }
+    }
+
+    /// The Comedy chart as Apple would return it: mostly comedy, plus the
+    /// decoys (a pop album, a soundtrack, a pop compilation's bit).
+    static let chartAlbumIDs = ["lower", "parking", "arena", "leftovers", "laundromat", "overthinking", "errors", "customer", "groupchat", "smalltalk", "momsaid"].map { album($0) }
+    static let chartBitPicks: [(String, Int)] = [("lower", 3), ("parking", 2), ("summer", 0), ("leftovers", 1), ("laundromat", 4), ("overthinking", 2), ("customer", 3), ("groupchat", 5), ("lower", 7)]
+
     /// Each special's bits, by album ID.
     static let tracks: [String: [ComedyTrack]] = Dictionary(uniqueKeysWithValues: albums.map { album in
         (album.id, bits(for: album))
@@ -63,6 +88,22 @@ enum MockData {
         return items.enumerated().map { index, item in (item, now - Double(index) * 2.5 * day) }
     }
 
+    /// Specials left partway, for Continue Listening (seeded library).
+    static var progressSeed: [ProgressSnapshot] {
+        let now = Date(timeIntervalSince1970: 1_792_000_000)
+        return [("mock-al-lower", 3, 95.0, 0.36, 0.0), ("mock-al-parking", 6, 40.0, 0.71, 3600.0), ("mock-al-laundromat", 1, 30.0, 0.12, 7200.0)]
+            .compactMap { id, index, position, fraction, ago in
+                guard let album = album(id: id) else { return nil }
+                let total = (tracks[id] ?? []).compactMap(\.duration).reduce(0, +)
+                return ProgressSnapshot(
+                    itemID: id, isAlbum: true, lastTrackIndex: index, lastPosition: position,
+                    lastPlayed: now - ago, finished: false, fractionComplete: fraction,
+                    title: album.title, artistName: album.artistName, artwork: album.artwork,
+                    trackCount: album.trackCount, totalDuration: total
+                )
+            }
+    }
+
     static func artist(id: String) -> ComedyArtist? {
         comedians.first { $0.id == id }
     }
@@ -80,6 +121,11 @@ enum MockData {
         "Jury Duty", "Brunch", "Group Projects", "My Mom's Facebook", "Hotel Breakfast", "Closing",
         "Leftovers", "Neighbors", "Car Rental Upsell", "Wellness Retreat", "Fantasy Football",
     ]
+
+    private static func playlist(_ slug: String, _ name: String, _ summary: String) -> ComedyPlaylist {
+        let id = "mock-pl-\(slug)"
+        return ComedyPlaylist(id: id, name: name, curatorName: "Standup Samples", artwork: ArtworkRef(generatedFor: id), summary: summary)
+    }
 
     private static func artist(_ slug: String, _ name: String, _ genres: [String]) -> ComedyArtist {
         let id = "mock-ar-\(slug)"
@@ -121,5 +167,11 @@ enum MockData {
             albumID: album.id, albumTitle: album.title, duration: TimeInterval(seconds), trackNumber: number,
             artwork: album.artwork, isExplicit: album.isExplicit, albumGenreNames: album.genreNames
         )
+    }
+}
+
+extension Array {
+    subscript(safe index: Int) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }

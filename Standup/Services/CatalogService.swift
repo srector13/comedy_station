@@ -9,6 +9,9 @@ protocol CatalogProviding: Sendable {
     func artist(id: String) async throws -> ArtistDetail
     /// Just the comedian (name, artwork, genres), without their page.
     func comedian(id: String) async throws -> ComedyArtist
+    /// The Comedy charts: top specials, top bits, playlists.
+    func charts() async throws -> ComedyCharts
+    func playlist(id: String) async throws -> PlaylistDetail
 }
 
 enum CatalogError: LocalizedError, Equatable {

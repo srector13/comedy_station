@@ -112,6 +112,24 @@ final class PlayerService {
             await play(album: album, startIndex: request.startIndex, shuffle: request.shuffle, resume: request.resume)
         case .artist(let artist):
             await play(artist: artist, shuffle: request.shuffle)
+        case .playlist(let playlist):
+            await play(playlist: playlist, startIndex: request.startIndex, shuffle: request.shuffle)
+        }
+    }
+
+    /// A playlist's bits (the comedy ones), from `startIndex` or shuffled.
+    /// Playlists don't resume.
+    func play(playlist: ComedyPlaylist, startIndex: Int = 0, shuffle: Bool = false) async {
+        await run {
+            let detail = try await catalog.playlist(id: playlist.id)
+            var tracks = detail.tracks
+            guard !tracks.isEmpty else { throw PlaybackError.nothingToPlay }
+            var start = min(max(startIndex, 0), tracks.count - 1)
+            if shuffle {
+                tracks.shuffle()
+                start = 0
+            }
+            try await begin(Session(kind: .bits(title: detail.playlist.name), tracks: tracks), at: start, position: 0, autoplay: true)
         }
     }
 
@@ -320,7 +338,8 @@ final class PlayerService {
             title: album.title,
             artistName: album.artistName,
             artwork: album.artwork,
-            trackCount: session.tracks.count
+            trackCount: session.tracks.count,
+            totalDuration: session.tracks.compactMap(\.duration).reduce(0, +)
         ))
         lastSave = now()
         progressRevision += 1
