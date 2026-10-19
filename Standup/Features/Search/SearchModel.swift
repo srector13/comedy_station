@@ -15,6 +15,8 @@ final class SearchModel {
 
     /// The search field's text.
     var query = ""
+    /// Which service to search (the switch shown once Spotify is connected).
+    private(set) var provider = Provider.appleMusic
     private(set) var phase: Phase = .idle
     private(set) var results = SearchResults()
     private(set) var suggestions: [SearchSuggestion] = []
@@ -70,6 +72,24 @@ final class SearchModel {
         }
     }
 
+    /// The switch: clears what the other service found and searches this one.
+    func setProvider(_ newValue: Provider) {
+        guard newValue != provider else { return }
+        provider = newValue
+        results = SearchResults()
+        suggestions = []
+        let term = self.term
+        guard !term.isEmpty else { return }
+        pending?.cancel()
+        pending = Task { await load(term) }
+    }
+
+    /// `provider` as the switch's binding target.
+    var searchProvider: Provider {
+        get { provider }
+        set { setProvider(newValue) }
+    }
+
     /// The Search key: search now and hide the suggestions.
     func submit() {
         let term = self.term
@@ -84,18 +104,19 @@ final class SearchModel {
             phase = .searching
         }
         let catalog = self.catalog
-        async let suggested = (try? await catalog.suggestions(for: term)) ?? []
+        let provider = self.provider
+        async let suggested = (try? await catalog.suggestions(for: term, in: provider)) ?? []
         do {
-            let found = try await catalog.search(term)
-            guard !Task.isCancelled, term == self.term else { return }
+            let found = try await catalog.search(term, in: provider)
+            guard !Task.isCancelled, term == self.term, provider == self.provider else { return }
             results = found
             phase = found.isEmpty ? .noResults : .results
         } catch {
-            guard !Task.isCancelled, term == self.term else { return }
+            guard !Task.isCancelled, term == self.term, provider == self.provider else { return }
             phase = .failed(error.localizedDescription)
         }
         let latest = await suggested
-        if term == self.term {
+        if term == self.term, provider == self.provider {
             suggestions = latest
         }
     }
