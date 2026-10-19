@@ -124,6 +124,8 @@ struct NowPlayingView: View {
                 Text(track.title)
                     .font(.headline)
                     .lineLimit(1)
+                    // Stands in for the title row while Up Next is open.
+                    .accessibilityIdentifier("nowPlaying.title")
                 Text(subtitle(track, session))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
