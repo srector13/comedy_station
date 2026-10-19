@@ -49,11 +49,23 @@ struct SigningInfo: Equatable, Sendable {
         return applicationIdentifier == expected
     }
 
-    /// Two lines for the setup screen.
+    /// The bundle ID part of the signed app ID ("TEAMID.bundle.id").
+    private var signedBundleID: String? {
+        applicationIdentifier?.split(separator: ".", maxSplits: 1).last.map(String.init)
+    }
+
+    /// For the setup screen: how this copy is signed, what MusicKit needs,
+    /// and, when those match, that the App ID itself is what's missing.
     var summary: String {
         var lines = ["This copy is signed as \(signedAs)" + (teamName.map { " (\($0))" } ?? "") + "."]
+        if let bundleID, let signedBundleID, bundleID != signedBundleID {
+            lines.append("Its bundle ID is \(bundleID).")
+        }
         if let expected {
             lines.append("MusicKit needs \(expected).")
+        }
+        if matchesExpected {
+            lines.append("The signing is right, so turn on MusicKit for this App ID (App Services tab in the developer portal), wait a few minutes, and tap Check Again.")
         }
         return lines.joined(separator: "\n")
     }

@@ -4,7 +4,7 @@ MusicKit can't play in the Simulator, so CI tests playback with a mock engine. T
 
 ## Before you start
 
-- Complete [MUSICKIT_SETUP.md](MUSICKIT_SETUP.md): the App ID has MusicKit, and the IPA is re-signed in Feather with your team and the bundle ID `PolarReailty.Standup`.
+- Complete [MUSICKIT_SETUP.md](MUSICKIT_SETUP.md): the App ID has MusicKit, and the IPA is re-signed in Feather with your team and the bundle ID `PolarReality.Standup`.
 - Be signed in to Apple Music with an active subscription.
 - Note one comedy special and check that it's not in Music's Recently Played. You'll check again at the end.
 

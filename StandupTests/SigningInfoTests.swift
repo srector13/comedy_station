@@ -25,33 +25,46 @@ struct SigningInfoTests {
     }
 
     @Test func readsTheEmbeddedProfile() {
-        var info = SigningInfo(bundleID: "PolarReailty.Standup", expected: "68L4YU8U89.PolarReailty.Standup")
-        info.read(profile: profile(appID: "68L4YU8U89.PolarReailty.Standup", team: "68L4YU8U89", teamName: "Polar Reality"))
+        var info = SigningInfo(bundleID: "PolarReality.Standup", expected: "68L4YU8U89.PolarReality.Standup")
+        info.read(profile: profile(appID: "68L4YU8U89.PolarReality.Standup", team: "68L4YU8U89", teamName: "Polar Reality"))
         #expect(info.profileName == "Standup Development")
         #expect(info.teamID == "68L4YU8U89")
         #expect(info.teamName == "Polar Reality")
-        #expect(info.applicationIdentifier == "68L4YU8U89.PolarReailty.Standup")
+        #expect(info.applicationIdentifier == "68L4YU8U89.PolarReality.Standup")
         #expect(info.matchesExpected)
     }
 
     @Test func spotsAnotherTeamsSignature() {
-        var info = SigningInfo(bundleID: "com.example.resigned", expected: "68L4YU8U89.PolarReailty.Standup")
+        var info = SigningInfo(bundleID: "com.example.resigned", expected: "68L4YU8U89.PolarReality.Standup")
         info.read(profile: profile(appID: "A1B2C3D4E5.com.example.resigned", team: "A1B2C3D4E5", teamName: "Some Other Team"))
         #expect(!info.matchesExpected)
-        #expect(info.summary == "This copy is signed as A1B2C3D4E5.com.example.resigned (Some Other Team).\nMusicKit needs 68L4YU8U89.PolarReailty.Standup.")
+        #expect(info.summary == "This copy is signed as A1B2C3D4E5.com.example.resigned (Some Other Team).\nMusicKit needs 68L4YU8U89.PolarReality.Standup.")
+    }
+
+    @Test func rightSigningPointsAtTheAppID() {
+        var info = SigningInfo(bundleID: "PolarReality.Standup", expected: "68L4YU8U89.PolarReality.Standup")
+        info.read(profile: profile(appID: "68L4YU8U89.PolarReality.Standup", team: "68L4YU8U89", teamName: "Stephen Rector"))
+        #expect(info.summary.hasSuffix("The signing is right, so turn on MusicKit for this App ID (App Services tab in the developer portal), wait a few minutes, and tap Check Again."))
+        #expect(!info.summary.contains("Its bundle ID"))
+    }
+
+    @Test func showsABundleIDThatDiffersFromTheProfile() {
+        var info = SigningInfo(bundleID: "PolarReailty.Standup", expected: "68L4YU8U89.PolarReality.Standup")
+        info.read(profile: profile(appID: "68L4YU8U89.PolarReality.Standup", team: "68L4YU8U89", teamName: "Stephen Rector"))
+        #expect(info.summary.contains("\nIts bundle ID is PolarReailty.Standup.\n"))
     }
 
     @Test func noProfileFallsBackToTheBundleID() {
-        var info = SigningInfo(bundleID: "PolarReailty.Standup", expected: "68L4YU8U89.PolarReailty.Standup")
+        var info = SigningInfo(bundleID: "PolarReality.Standup", expected: "68L4YU8U89.PolarReality.Standup")
         info.read(profile: Data("not a profile".utf8))
         #expect(info.applicationIdentifier == nil)
         #expect(!info.matchesExpected)
-        #expect(info.signedAs == "PolarReailty.Standup (no provisioning profile)")
+        #expect(info.signedAs == "PolarReality.Standup (no provisioning profile)")
     }
 
     @Test func setupErrorExplainsItself() {
-        let error = MusicKitSetupError(signing: SigningInfo(bundleID: "PolarReailty.Standup", expected: "68L4YU8U89.PolarReailty.Standup"))
+        let error = MusicKitSetupError(signing: SigningInfo(bundleID: "PolarReality.Standup", expected: "68L4YU8U89.PolarReality.Standup"))
         #expect(error.localizedDescription.hasPrefix("Apple Music didn't accept this copy of Standup."))
-        #expect(error.localizedDescription.contains("MusicKit needs 68L4YU8U89.PolarReailty.Standup."))
+        #expect(error.localizedDescription.contains("MusicKit needs 68L4YU8U89.PolarReality.Standup."))
     }
 }

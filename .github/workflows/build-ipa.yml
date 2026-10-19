@@ -12,7 +12,7 @@
 #
 # Re-signing in Feather (MusicKit): MusicKit mints its developer token from
 # the signing team and bundle ID, so re-sign with a certificate and profile
-# from team 68L4YU8U89 for PolarReailty.Standup, and keep the bundle ID
+# from team 68L4YU8U89 for PolarReality.Standup, and keep the bundle ID
 # unchanged. See docs/MUSICKIT_SETUP.md.
 #
 # Runner: unlike MyTeams (macos-26, default Xcode 26.6), Standup targets
@@ -190,7 +190,7 @@ jobs:
           # tag_name, and do not PATCH a draft we just created at all (the
           # create already set every field).
           TITLE="Standup build ${TAG} (sha ${SHORT_SHA})"
-          NOTES="Unsigned build of ${GITHUB_SHA} (run ${GITHUB_RUN_NUMBER}) for re-signing in Feather. Re-sign with team 68L4YU8U89 and keep the bundle ID PolarReailty.Standup, or MusicKit catalog requests fail (docs/MUSICKIT_SETUP.md)."
+          NOTES="Unsigned build of ${GITHUB_SHA} (run ${GITHUB_RUN_NUMBER}) for re-signing in Feather. Re-sign with team 68L4YU8U89 and keep the bundle ID PolarReality.Standup, or MusicKit catalog requests fail (docs/MUSICKIT_SETUP.md)."
           ADOPTED=false
           RELEASE_ID="$(oldest_draft <<< "$RELEASES")"
           if [ -n "$RELEASE_ID" ]; then

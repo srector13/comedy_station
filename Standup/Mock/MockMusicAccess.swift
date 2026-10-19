@@ -21,7 +21,7 @@ struct MockMusicAccess: MusicAccessProviding {
         if refusesToken {
             throw MusicKitSetupError(signing: SigningInfo(
                 applicationIdentifier: "A1B2C3D4E5.com.example.resigned", teamID: "A1B2C3D4E5", teamName: "Some Other Team",
-                profileName: "Wildcard", bundleID: "com.example.resigned", expected: "68L4YU8U89.PolarReailty.Standup"
+                profileName: "Wildcard", bundleID: "com.example.resigned", expected: "68L4YU8U89.PolarReality.Standup"
             ))
         }
     }

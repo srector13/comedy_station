@@ -57,7 +57,7 @@ struct AuthGateTests {
             return
         }
         #expect(signing.contains("A1B2C3D4E5.com.example.resigned"))
-        #expect(signing.contains("68L4YU8U89.PolarReailty.Standup"))
+        #expect(signing.contains("68L4YU8U89.PolarReality.Standup"))
     }
 
     @Test func tokenIsOnlyCheckedWithASubscription() async {

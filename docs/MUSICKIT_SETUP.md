@@ -4,7 +4,7 @@ Standup plays the Apple Music catalog through MusicKit. MusicKit needs no API ke
 
 | | |
 |---|---|
-| Bundle ID | `PolarReailty.Standup` |
+| Bundle ID | `PolarReality.Standup` (MyTeams' `PolarReailty.Hawk` is spelled differently; Standup uses the spelling of its registered App ID) |
 | Team | `68L4YU8U89` (same as MyTeams) |
 
 Both live in `Standup.xcodeproj` (`PRODUCT_BUNDLE_IDENTIFIER`, `DEVELOPMENT_TEAM`). If you change them, change them there, here, and in the release notes in `.github/workflows/build-ipa.yml`.
@@ -13,7 +13,7 @@ Both live in `Standup.xcodeproj` (`PRODUCT_BUNDLE_IDENTIFIER`, `DEVELOPMENT_TEAM
 
 1. Go to [developer.apple.com/account](https://developer.apple.com/account) → **Certificates, Identifiers & Profiles** → **Identifiers** → **+**.
 2. Choose **App IDs** → **App** → Continue.
-3. Description `Standup`. Bundle ID **Explicit**: `PolarReailty.Standup`. Continue → Register.
+3. Description `Standup`. Bundle ID **Explicit**: `PolarReality.Standup`. Continue → Register.
 4. Open the new identifier, switch to the **App Services** tab, tick **MusicKit**, and Save.
    - MusicKit is an App Service, not a Capability. There is no entitlement to add and nothing changes in the provisioning profile.
    - The token service can take a few minutes to pick the change up.
@@ -21,27 +21,29 @@ Both live in `Standup.xcodeproj` (`PRODUCT_BUNDLE_IDENTIFIER`, `DEVELOPMENT_TEAM
 ## 2. Install the unsigned IPA with Feather
 
 1. Run **Actions → Build unsigned IPA → Run workflow** (the workflow is dispatchable once it is on `main`). It publishes a release `v1.0.N` with `Standup-v1.0.N-unsigned.ipa`.
-2. On the portal, make a provisioning profile for `PolarReailty.Standup` that includes your iPhone's UDID. Use **iOS App Development** with your Apple Development certificate, or **Ad Hoc** with your Apple Distribution certificate.
+2. On the portal, make a provisioning profile for `PolarReality.Standup` that includes your iPhone's UDID. Use **iOS App Development** with your Apple Development certificate, or **Ad Hoc** with your Apple Distribution certificate.
 3. Export that certificate from Keychain Access as a `.p12`.
 4. In Feather, import the `.p12` and the `.mobileprovision`, then import the IPA and sign it.
-   - **Keep the bundle ID `PolarReailty.Standup`.** Don't let Feather rewrite it.
+   - **Keep the bundle ID `PolarReality.Standup`.** Don't let Feather rewrite it.
    - **Use your own team's certificate.** With a different team's certificate, or a changed bundle ID, authorization still succeeds, but Apple refuses the developer token and every catalog request fails. The app then shows "MusicKit Isn't Set Up" with how this copy is signed.
    - Feather's built-in or shared certificates belong to other teams, so they can't work with MusicKit.
 
 ## Troubleshooting: "MusicKit Isn't Set Up" / "Failed to request developer token"
 
-The app checks the catalog right after Apple Music access is granted. If Apple refuses the developer token, the screen shows two lines:
+The app checks the catalog right after Apple Music access is granted. If Apple refuses the developer token, the screen shows how this copy is signed and what MusicKit needs:
 
 ```
-This copy is signed as <TEAM>.<bundle id> (<team name>).
-MusicKit needs 68L4YU8U89.PolarReailty.Standup.
+This copy is signed as <TEAM>.<bundle id> (<name>).
+MusicKit needs 68L4YU8U89.PolarReality.Standup.
 ```
+
+A line "Its bundle ID is …" is added when the app's bundle ID differs from its profile. When the signing already matches, the screen says so: then the App ID is missing MusicKit.
 
 | What the first line shows | Fix |
 |---|---|
 | A team other than `68L4YU8U89` | Re-sign in Feather with your own Apple Development or Distribution `.p12` and a profile from team `68L4YU8U89`. |
-| A bundle ID other than `PolarReailty.Standup` (or a wildcard `*`) | Use an explicit profile for `PolarReailty.Standup` and turn off Feather's bundle ID change. |
-| Exactly `68L4YU8U89.PolarReailty.Standup` | The signing is right. Check that **MusicKit** is ticked under the App ID's **App Services** tab and saved. Then wait a few minutes and tap **Check Again**. |
+| A bundle ID other than `PolarReality.Standup` (or a wildcard `*`) | Use an explicit profile for `PolarReality.Standup` and turn off Feather's bundle ID change. |
+| Exactly `68L4YU8U89.PolarReality.Standup` | The signing is right. Check that **MusicKit** is ticked under the App ID's **App Services** tab and saved. Then wait a few minutes and tap **Check Again**. |
 
 ## 3. On the device
 
