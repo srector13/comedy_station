@@ -44,7 +44,7 @@ struct BrowseView: View {
     private func sections(_ charts: ComedyCharts) -> some View {
         if let featured = charts.newSpecials().first ?? charts.topSpecials.first {
             NavigationLink(value: Route.album(featured)) {
-                FeaturedBanner(album: featured, label: charts.newSpecials().isEmpty ? "TOP SPECIAL" : "NEW SPECIAL")
+                FeaturedBanner(album: featured, label: !charts.newSpecials().isEmpty ? "NEW SPECIAL" : charts.specialsSource == .chart ? "TOP SPECIAL" : "FEATURED SPECIAL")
             }
             .buttonStyle(.plain)
             .libraryContextMenu(.special(featured))
@@ -53,7 +53,7 @@ struct BrowseView: View {
         }
 
         if !charts.topSpecials.isEmpty {
-            Shelf(title: "Top Specials") {
+            Shelf(title: charts.specialsTitle) {
                 ForEach(charts.topSpecials) { album in
                     NavigationLink(value: Route.album(album)) {
                         SpecialCard(album: album)
@@ -65,13 +65,13 @@ struct BrowseView: View {
         }
 
         if !charts.topBits.isEmpty {
-            RankedGrid(title: "Top Bits", items: charts.topBits) { rank, track in
+            RankedGrid(title: charts.bitsTitle, items: charts.topBits) { rank, track in
                 Button {
                     if let album = track.albumStub {
                         play(PlayRequest(item: .album(album), startIndex: max((track.trackNumber ?? 1) - 1, 0)))
                     }
                 } label: {
-                    RankedRow(rank: rank, title: track.title, subtitle: track.artistName, artwork: track.artwork, placeholderTitle: track.albumTitle ?? track.title)
+                    RankedRow(rank: charts.bitRank(rank), title: track.title, subtitle: track.artistName, artwork: track.artwork, placeholderTitle: track.albumTitle ?? track.title)
                 }
                 .buttonStyle(.plain)
                 .libraryContextMenu(.bit(track))

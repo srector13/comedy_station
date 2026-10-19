@@ -54,9 +54,45 @@ struct PlayerServiceTests {
     @Test func shuffleKeepsEveryBitAndDoesNotResume() async {
         await player.play(album: special, shuffle: true)
         #expect(Set(player.session?.tracks.map(\.id) ?? []) == Set(bits.map(\.id)))
-        #expect(player.session?.progressID == nil)
+        #expect(player.isShuffled)
         player.pause()
         #expect(store.saved.isEmpty)
+    }
+
+    @Test func shuffleSwitchKeepsTheBitPlaying() async {
+        await player.play(album: special, startIndex: 2)
+        clock.advance(20)
+        player.sync()
+        await player.setShuffle(true)
+        #expect(player.isShuffled)
+        #expect(player.index == 0)
+        #expect(player.currentTrack?.id == bits[2].id)
+        #expect(player.elapsed == 20)
+        #expect(player.isPlaying)
+        #expect(Set(player.session?.tracks.map(\.id) ?? []) == Set(bits.map(\.id)))
+
+        await player.setShuffle(false)
+        #expect(!player.isShuffled)
+        #expect(player.session?.tracks.map(\.id) == bits.map(\.id))
+        #expect(player.index == 2)
+        #expect(player.currentTrack?.id == bits[2].id)
+    }
+
+    @Test func aShuffledSpecialKeepsItsPlaceFromBeforeShuffling() async {
+        await player.play(album: special, startIndex: 3)
+        await player.setShuffle(true)
+        await player.next()
+        player.pause()
+        #expect(store.progress(for: special.id)?.lastTrackIndex == 3)
+        await player.setShuffle(false)
+        #expect(store.progress(for: special.id)?.lastTrackIndex == player.index)
+    }
+
+    @Test func playingInOrderTurnsShuffleOff() async {
+        await player.play(album: special, shuffle: true)
+        await player.play(album: special)
+        #expect(!player.isShuffled)
+        #expect(player.session?.tracks.map(\.id) == bits.map(\.id))
     }
 
     @Test func nonComedyIsRefused() async {

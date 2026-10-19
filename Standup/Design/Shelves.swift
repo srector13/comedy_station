@@ -93,8 +93,9 @@ struct ContinueListeningCard: View {
 }
 
 /// A chart row: rank, artwork, title, subtitle. Music's Top Charts grid.
+/// Without a rank (a list that isn't a chart) the number is left out.
 struct RankedRow: View {
-    let rank: Int
+    let rank: Int?
     let title: String
     let subtitle: String
     let artwork: ArtworkRef
@@ -107,10 +108,12 @@ struct RankedRow: View {
             ArtworkView(artwork, placeholder: .poster(placeholderTitle), pixels: 160)
                 .frame(width: 52, height: 52)
                 .clipShape(.rect(cornerRadius: 6))
-            Text("\(rank)")
-                .font(.headline)
-                .monospacedDigit()
-                .frame(minWidth: 18)
+            if let rank {
+                Text("\(rank)")
+                    .font(.headline)
+                    .monospacedDigit()
+                    .frame(minWidth: 18)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.body)
@@ -124,7 +127,7 @@ struct RankedRow: View {
         }
         .contentShape(.rect)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Number \(rank): \(title), \(subtitle)")
+        .accessibilityLabel((rank.map { "Number \($0): " } ?? "") + "\(title), \(subtitle)")
     }
 }
 

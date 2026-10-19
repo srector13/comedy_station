@@ -17,10 +17,15 @@ final class PlayerService {
         }
 
         var kind: Kind
+        /// In play order.
         var tracks: [ComedyTrack]
-        /// The special's ID, under which progress is saved; nil for a mix
-        /// or a shuffled special, which don't resume.
+        /// The special's ID, under which progress is saved; nil for a mix,
+        /// which doesn't resume.
         var progressID: String?
+        /// The bits in their own order while shuffled; nil when in order.
+        var unshuffled: [ComedyTrack]?
+
+        var isShuffled: Bool { unshuffled != nil }
 
         var album: ComedyAlbum? {
             if case .special(let album) = kind { album } else { nil }
@@ -129,7 +134,8 @@ final class PlayerService {
                 tracks.shuffle()
                 start = 0
             }
-            try await begin(Session(kind: .bits(title: detail.playlist.name), tracks: tracks), at: start, position: 0, autoplay: true)
+            let session = Session(kind: .bits(title: detail.playlist.name), tracks: tracks, unshuffled: shuffle ? detail.tracks : nil)
+            try await begin(session, at: start, position: 0, autoplay: true)
         }
     }
 
@@ -149,7 +155,8 @@ final class PlayerService {
             if shuffle {
                 let bits = detail.topBits.shuffled()
                 guard !bits.isEmpty else { throw PlaybackError.nothingToPlay }
-                try await begin(Session(kind: .bits(title: "\(detail.artist.name): Top Bits"), tracks: bits), at: 0, position: 0, autoplay: true)
+                let session = Session(kind: .bits(title: "\(detail.artist.name): Top Bits"), tracks: bits, unshuffled: detail.topBits)
+                try await begin(session, at: 0, position: 0, autoplay: true)
             } else {
                 guard let special = detail.featured ?? detail.specials.first else { throw PlaybackError.nothingToPlay }
                 try await begin(special, startIndex: 0, shuffle: false, resume: true, position: 0, autoplay: true)
@@ -171,7 +178,7 @@ final class PlayerService {
             start = saved.lastTrackIndex
             seconds = saved.lastPosition
         }
-        let session = Session(kind: .special(detail.album), tracks: tracks, progressID: shuffle ? nil : album.id)
+        let session = Session(kind: .special(detail.album), tracks: tracks, progressID: album.id, unshuffled: shuffle ? detail.tracks : nil)
         try await begin(session, at: start, position: seconds, autoplay: autoplay)
     }
 
@@ -271,6 +278,47 @@ final class PlayerService {
         }
     }
 
+    /// Whether the loaded bits play shuffled.
+    var isShuffled: Bool {
+        session?.isShuffled ?? false
+    }
+
+    /// The player's shuffle switch. On: the bit playing carries on and the
+    /// rest of the set is mixed. Off: back to the set's own order, at the
+    /// same bit. A special doesn't save its place while shuffled.
+    func setShuffle(_ on: Bool) async {
+        guard var session, on != session.isShuffled, session.tracks.indices.contains(index) else { return }
+        saveProgress()
+        let newIndex: Int
+        if on {
+            var rest = session.tracks
+            let current = rest.remove(at: index)
+            session.unshuffled = session.tracks
+            session.tracks = [current] + rest.shuffled()
+            newIndex = 0
+        } else {
+            let current = session.tracks[index]
+            session.tracks = session.unshuffled ?? session.tracks
+            session.unshuffled = nil
+            newIndex = session.tracks.firstIndex(of: current) ?? 0
+        }
+        let position = elapsed
+        let wasPlaying = isPlaying
+        await run {
+            try await engine.load(session.tracks, startIndex: newIndex, position: position)
+            self.session = session
+            index = newIndex
+            elapsed = position
+            engine.rate = rate
+            if wasPlaying {
+                try await engine.play()
+                engine.rate = rate
+            }
+            isPlaying = engine.isPlaying
+            saveProgress()
+        }
+    }
+
     func setRate(_ newRate: Float) {
         rate = newRate
         engine.rate = newRate
@@ -324,7 +372,7 @@ final class PlayerService {
     /// backgrounding, and before something else is loaded). Within 30 s of
     /// the end it counts as finished and starts over next time.
     func saveProgress() {
-        guard let session, let id = session.progressID, let progressStore, let album = session.album else { return }
+        guard let session, !session.isShuffled, let id = session.progressID, let progressStore, let album = session.album else { return }
         let isLastBit = index == session.tracks.count - 1
         let finished = isLastBit && duration > 0 && duration - elapsed < Self.finishedThreshold
         progressStore.saveProgress(ProgressSnapshot(

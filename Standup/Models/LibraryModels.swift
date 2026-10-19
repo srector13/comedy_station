@@ -91,8 +91,12 @@ final class SavedTrack {
     var albumGenreNames: [String]
     var isExplicit: Bool
     var dateAdded: Date
+    /// Added because its special was, not on its own; leaves again with
+    /// the special.
+    var isAutomatic: Bool = false
 
-    init(_ track: ComedyTrack, dateAdded: Date = .now) {
+    init(_ track: ComedyTrack, dateAdded: Date = .now, isAutomatic: Bool = false) {
+        self.isAutomatic = isAutomatic
         songID = track.id
         title = track.title
         artistName = track.artistName

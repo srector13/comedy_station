@@ -92,6 +92,21 @@ struct ArtworkRefTests {
     }
 }
 
+struct SearchResultsTests {
+    @Test func mergeAddsOnlyNewItemsAfterTheFirst() throws {
+        let maya = try #require(MockData.artist(id: "mock-ar-maya"))
+        let dev = try #require(MockData.artist(id: "mock-ar-dev"))
+        let lower = try #require(MockData.album(id: "mock-al-lower"))
+        let parking = try #require(MockData.album(id: "mock-al-parking"))
+        var results = SearchResults(comedians: [maya], specials: [lower])
+        results.merge(SearchResults(comedians: [dev, maya], specials: [lower, parking], bits: MockData.tracks[parking.id]!))
+        #expect(results.comedians.map(\.id) == [maya.id, dev.id])
+        #expect(results.specials.map(\.id) == [lower.id, parking.id])
+        #expect(results.bits.count == MockData.tracks[parking.id]!.count)
+        #expect(results.headlineCount == 4)
+    }
+}
+
 struct FormatTests {
     @Test func trackTimes() {
         #expect(Format.trackTime(272) == "4:32")
@@ -138,6 +153,24 @@ struct ResponseCacheTests {
 }
 
 struct ChartsAndPlaylistsTests {
+    @Test func searchFilledSectionsAreNotRanked() {
+        var charts = ComedyCharts()
+        #expect(charts.specialsTitle == "Top Specials")
+        #expect(charts.bitRank(3) == 3)
+        charts.specialsSource = .search
+        charts.bitsSource = .search
+        #expect(charts.specialsTitle == "Comedy Specials")
+        #expect(charts.bitsTitle == "Comedy Bits")
+        #expect(charts.specialRank(1) == nil)
+        #expect(charts.bitRank(3) == nil)
+    }
+
+    @Test func noComedyErrorSaysWhatTheChartReturned() {
+        let error = CatalogError.noComedy("The Comedy chart had 40 albums and 40 songs; 0 and 0 were comedy.")
+        #expect(error.localizedDescription.hasPrefix("Apple Music didn't return any comedy here right now."))
+        #expect(error.localizedDescription.contains("40 albums"))
+    }
+
     let catalog = MockCatalog()
 
     @Test func chartsDropEveryDecoy() async throws {

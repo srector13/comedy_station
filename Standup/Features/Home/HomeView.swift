@@ -97,9 +97,9 @@ struct HomeView: View {
             }
         }
         if !charts.topSpecials.isEmpty {
-            RankedGrid(title: "Top Comedy", items: Array(charts.topSpecials.prefix(12))) { rank, album in
+            RankedGrid(title: charts.specialsSource == .chart ? "Top Comedy" : charts.specialsTitle, items: Array(charts.topSpecials.prefix(12))) { rank, album in
                 NavigationLink(value: Route.album(album)) {
-                    RankedRow(rank: rank, title: album.title, subtitle: album.artistName, artwork: album.artwork, placeholderTitle: album.title)
+                    RankedRow(rank: charts.specialRank(rank), title: album.title, subtitle: album.artistName, artwork: album.artwork, placeholderTitle: album.title)
                 }
                 .buttonStyle(.plain)
                 .libraryContextMenu(.special(album))

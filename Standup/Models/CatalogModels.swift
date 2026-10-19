@@ -139,11 +139,37 @@ struct PlaylistDetail: Hashable, Sendable {
 
 /// The Comedy charts (genre 3), filtered.
 struct ComedyCharts: Hashable, Sendable {
+    /// Where a section came from: the Comedy chart (ranked by plays), or,
+    /// when the chart had none, catalog searches for comedy (not ranked).
+    enum Source: Hashable, Sendable {
+        case chart, search
+    }
+
     /// Most played specials, in chart order.
     var topSpecials: [ComedyAlbum] = []
     /// Most played bits, in chart order.
     var topBits: [ComedyTrack] = []
     var playlists: [ComedyPlaylist] = []
+    var specialsSource = Source.chart
+    var bitsSource = Source.chart
+
+    var specialsTitle: String {
+        specialsSource == .chart ? "Top Specials" : "Comedy Specials"
+    }
+
+    var bitsTitle: String {
+        bitsSource == .chart ? "Top Bits" : "Comedy Bits"
+    }
+
+    /// The rank to show beside the n-th special, only when it is a chart.
+    func specialRank(_ position: Int) -> Int? {
+        specialsSource == .chart ? position : nil
+    }
+
+    /// The rank to show beside the n-th bit, only when it is a chart.
+    func bitRank(_ position: Int) -> Int? {
+        bitsSource == .chart ? position : nil
+    }
 
     /// Charted specials from the last two years, newest first: MusicKit
     /// has no new-releases-by-genre request.
@@ -163,6 +189,22 @@ struct SearchResults: Hashable, Sendable {
     var bits: [ComedyTrack] = []
 
     var isEmpty: Bool { comedians.isEmpty && specials.isEmpty && bits.isEmpty }
+
+    /// Comedians and specials found: what a name search is after.
+    var headlineCount: Int { comedians.count + specials.count }
+
+    /// Adds another search's results after these, skipping any already here.
+    mutating func merge(_ other: SearchResults) {
+        func appendNew<Item: Identifiable>(_ items: [Item], to list: inout [Item]) {
+            var seen = Set(list.map(\.id))
+            for item in items where seen.insert(item.id).inserted {
+                list.append(item)
+            }
+        }
+        appendNew(other.comedians, to: &comedians)
+        appendNew(other.specials, to: &specials)
+        appendNew(other.bits, to: &bits)
+    }
 }
 
 /// An as-you-type suggestion: a catalog hit that passed the comedy filter.

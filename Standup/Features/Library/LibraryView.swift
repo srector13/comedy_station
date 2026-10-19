@@ -3,7 +3,7 @@ import SwiftUI
 
 /// The App Library's sections, as rows like Music's library.
 enum LibraryCategory: String, CaseIterable, Identifiable, Hashable {
-    case comedians, specials, bits, recentlyAdded, downloads
+    case comedians, specials, bits, recentlyAdded
 
     var id: Self { self }
 
@@ -13,7 +13,6 @@ enum LibraryCategory: String, CaseIterable, Identifiable, Hashable {
         case .specials: "Specials"
         case .bits: "Bits"
         case .recentlyAdded: "Recently Added"
-        case .downloads: "Downloads"
         }
     }
 
@@ -23,24 +22,19 @@ enum LibraryCategory: String, CaseIterable, Identifiable, Hashable {
         case .specials: "square.stack"
         case .bits: "quote.bubble"
         case .recentlyAdded: "clock"
-        case .downloads: "arrow.down.circle"
         }
     }
 
     var emptyTitle: String {
-        switch self {
-        case .downloads: "No Downloads"
-        default: "No \(title)"
-        }
+        "No \(title)"
     }
 
     var emptyMessage: String {
         switch self {
         case .comedians: "Add a comedian with the + on their page, or by touching and holding them anywhere."
         case .specials: "Add a special with the + on its page, or by touching and holding it."
-        case .bits: "Swipe left on a bit to add it on its own."
+        case .bits: "A special's bits come along when you add it. Swipe left on any bit to add it on its own."
         case .recentlyAdded: "Everything you add shows up here, newest first."
-        case .downloads: "Downloads would have to go through your Apple Music library, which Standup never touches. Specials stream instead."
         }
     }
 }
@@ -130,7 +124,6 @@ struct LibraryCategoryView: View {
             case .specials: LibrarySpecialsGrid()
             case .bits: LibraryBitsList()
             case .recentlyAdded: RecentlyAddedList()
-            case .downloads: LibraryEmptyView(category: .downloads)
             }
         }
         .navigationTitle(category.title)
@@ -221,7 +214,8 @@ struct LibraryBitsList: View {
     }
 }
 
-/// Everything in the App Library, newest first.
+/// Everything in the App Library, newest first. Bits that came with a
+/// special aren't listed one by one; the special is.
 struct RecentlyAddedList: View {
     @Query private var comedians: [SavedComedian]
     @Query private var specials: [SavedAlbum]
@@ -231,7 +225,7 @@ struct RecentlyAddedList: View {
         var all: [(item: LibraryItem, date: Date)] = []
         for saved in comedians { all.append((.comedian(saved.comedian), saved.dateAdded)) }
         for saved in specials { all.append((.special(saved.album), saved.dateAdded)) }
-        for saved in bits { all.append((.bit(saved.track), saved.dateAdded)) }
+        for saved in bits where !saved.isAutomatic { all.append((.bit(saved.track), saved.dateAdded)) }
         return all.sorted { $0.date > $1.date }
     }
 

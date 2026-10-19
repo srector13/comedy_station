@@ -31,6 +31,14 @@ final class PlaybackUITests: StandupUITestCase {
         fast.tap()
         XCTAssertTrue(waitForValue(element("nowPlaying.speed", in: app), "1.5×"), "speed didn't change")
 
+        let title = element("nowPlaying.title", in: app).label
+        let shuffle = element("nowPlaying.shuffle", in: app)
+        shuffle.tap()
+        XCTAssertTrue(waitForValue(shuffle, "On"), "shuffle didn't turn on")
+        XCTAssertEqual(element("nowPlaying.title", in: app).label, title, "shuffling changed the bit playing")
+        shuffle.tap()
+        XCTAssertTrue(waitForValue(shuffle, "Off"), "shuffle didn't turn off")
+
         element("nowPlaying.upNext", in: app).tap()
         let third = element("nowPlaying.upNext.2", in: app)
         require(third, in: app, timeout: 5, "no Up Next")
@@ -66,7 +74,7 @@ final class PlaybackUITests: StandupUITestCase {
         require(labelled("Now Playing: \(resumedTitle)", in: app), in: app, "didn't resume at the same bit")
     }
 
-    /// Adding a special adds its comedian too.
+    /// Adding a special adds its comedian and its bits too.
     @MainActor
     func testAddingASpecialAddsItsComedian() {
         let app = launch(tab: "home", extra: ["-StandupRoute", "album:mock-al-lower"], dark: false)
@@ -77,6 +85,10 @@ final class PlaybackUITests: StandupUITestCase {
         app.tabBars.buttons["Library"].tap()
         element("library.comedians", in: app).tap()
         require(element("library.comedian.mock-ar-maya", in: app), in: app, "the comedian wasn't added with the special")
+        app.navigationBars.buttons["BackButton"].tap()
+        element("library.bits", in: app).tap()
+        require(element("library.bit.mock-al-lower-1", in: app), in: app, "the special's bits weren't added with it")
+        snap("38-library-bits-from-special", dark: false)
     }
 
     /// A paused special: Now Playing, Up Next and landscape; and the

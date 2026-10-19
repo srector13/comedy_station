@@ -8,22 +8,39 @@ actor MusicKitCatalog: CatalogProviding {
     private var cache = ResponseCache(lifetime: 10 * 60)
 
     func suggestions(for term: String) async throws -> [SearchSuggestion] {
-        try await cached("suggestions:\(term.lowercased())") {
-            var request = MusicCatalogSearchSuggestionsRequest(term: term, includingTopResultsOfTypes: [Artist.self, Album.self])
-            request.limit = 10
-            let suggestions: [SearchSuggestion] = try await request.response().topResults.compactMap { result in
-                switch result {
-                case .artist(let artist): .comedian(ComedyArtist(artist))
-                case .album(let album): .special(ComedyAlbum(album))
-                default: nil
+        let suggestions: [SearchSuggestion] = try await suggestionsResponse(for: term).topResults.compactMap { result in
+            switch result {
+            case .artist(let artist): .comedian(ComedyArtist(artist))
+            case .album(let album): .special(ComedyAlbum(album))
+            default: nil
+            }
+        }
+        return ComedyFilter.keep(suggestions)
+    }
+
+    /// Search as you type. A half-typed name ("mark nor") ranks musicians
+    /// first, so after the comedy filter little or nothing is left. When
+    /// that happens, Apple's completions of the term ("mark normand") are
+    /// searched too and their comedy results added after.
+    func search(_ term: String) async throws -> SearchResults {
+        try await cached("search:\(term.lowercased())") {
+            var found = try await results(for: term)
+            guard found.headlineCount < 3 else { return found }
+            let completions = ((try? await suggestionsResponse(for: term).suggestions) ?? [])
+                .map(\.searchTerm)
+                .filter { $0.caseInsensitiveCompare(term) != .orderedSame }
+            for completion in completions.prefix(2) {
+                if let more = try? await results(for: completion) {
+                    found.merge(more)
                 }
             }
-            return ComedyFilter.keep(suggestions)
+            return found
         }
     }
 
-    func search(_ term: String) async throws -> SearchResults {
-        try await cached("search:\(term.lowercased())") {
+    /// One catalog search, through the comedy filter.
+    private func results(for term: String) async throws -> SearchResults {
+        try await cached("results:\(term.lowercased())") {
             var request = MusicCatalogSearchRequest(term: term, types: [Artist.self, Album.self, Song.self])
             request.limit = 25
             let response = try await request.response()
@@ -33,6 +50,14 @@ actor MusicKitCatalog: CatalogProviding {
                 specials: ComedyFilter.keep(response.albums.map(ComedyAlbum.init)),
                 bits: bits
             )
+        }
+    }
+
+    private func suggestionsResponse(for term: String) async throws -> MusicCatalogSearchSuggestionsResponse {
+        try await cached("suggestions:\(term.lowercased())") {
+            var request = MusicCatalogSearchSuggestionsRequest(term: term, includingTopResultsOfTypes: [Artist.self, Album.self])
+            request.limit = 10
+            return try await request.response()
         }
     }
 
@@ -90,20 +115,65 @@ actor MusicKitCatalog: CatalogProviding {
         }
     }
 
+    /// The Comedy chart for Home and Browse. Where the chart has no comedy
+    /// specials or bits (it can come back empty, or with nothing tagged
+    /// Comedy), searches for comedy fill that section instead.
     func charts() async throws -> ComedyCharts {
         try await cached("charts") {
-            // Genre ID 3 is used here and only here (rule 3); every result
-            // still goes through the genre-name filter.
-            let genreRequest = MusicCatalogResourceRequest<Genre>(matching: \.id, equalTo: MusicItemID(ComedyFilter.comedyGenreID))
-            guard let comedy = try await genreRequest.response().items.first else { throw CatalogError.notFound }
-            var request = MusicCatalogChartsRequest(genre: comedy, kinds: [.mostPlayed], types: [Album.self, Song.self, Playlist.self])
-            request.limit = 40
-            let response = try await request.response()
-            let specials = ComedyFilter.keep((response.albumCharts.first?.items ?? []).map(ComedyAlbum.init))
-            let bits = try await comedyBits(Array(response.songCharts.first?.items ?? []))
-            let playlists = (response.playlistCharts.first?.items ?? []).map(ComedyPlaylist.init)
-            return ComedyCharts(topSpecials: specials, topBits: bits, playlists: playlists)
+            var charts = ComedyCharts()
+            var notes: [String] = []
+            do {
+                // Genre ID 3 is used here and only here (rule 3); every
+                // result still goes through the genre-name filter.
+                let genreRequest = MusicCatalogResourceRequest<Genre>(matching: \.id, equalTo: MusicItemID(ComedyFilter.comedyGenreID))
+                guard let comedy = try await genreRequest.response().items.first else { throw CatalogError.notFound }
+                var request = MusicCatalogChartsRequest(genre: comedy, kinds: [.mostPlayed], types: [Album.self, Song.self])
+                request.limit = 40
+                let response = try await request.response()
+                let albums = response.albumCharts.flatMap(\.items)
+                let songs = response.songCharts.flatMap(\.items)
+                charts.topSpecials = ComedyFilter.keep(albums.map(ComedyAlbum.init))
+                charts.topBits = try await comedyBits(songs)
+                notes.append("The Comedy chart had \(albums.count) albums and \(songs.count) songs; \(charts.topSpecials.count) and \(charts.topBits.count) were comedy.")
+                // Playlists on their own, so a chart without them can't
+                // sink the rest.
+                var playlistRequest = MusicCatalogChartsRequest(genre: comedy, kinds: [.mostPlayed], types: [Playlist.self])
+                playlistRequest.limit = 20
+                if let playlistResponse = try? await playlistRequest.response() {
+                    charts.playlists = playlistResponse.playlistCharts.flatMap(\.items).map(ComedyPlaylist.init)
+                }
+            } catch {
+                if let setup = MusicKitSetupError(error) { throw setup }
+                notes.append("The Comedy chart didn't load (\(error.localizedDescription)).")
+            }
+            if charts.topSpecials.isEmpty || charts.topBits.isEmpty {
+                let found = await searchedComedy()
+                if charts.topSpecials.isEmpty {
+                    charts.topSpecials = found.specials
+                    charts.specialsSource = .search
+                }
+                if charts.topBits.isEmpty {
+                    charts.topBits = found.bits
+                    charts.bitsSource = .search
+                }
+            }
+            guard !charts.isEmpty else {
+                throw CatalogError.noComedy(notes.joined(separator: " "))
+            }
+            return charts
         }
+    }
+
+    /// Comedy found by searching the catalog, for a chart section that has
+    /// none. Every result goes through the comedy filter.
+    private func searchedComedy() async -> SearchResults {
+        var found = SearchResults()
+        for term in ["stand-up comedy", "comedy special", "live stand-up"] {
+            if let more = try? await results(for: term) {
+                found.merge(more)
+            }
+        }
+        return found
     }
 
     func playlist(id: String) async throws -> PlaylistDetail {

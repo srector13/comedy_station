@@ -136,9 +136,10 @@ struct NowPlayingView: View {
     }
 
     private var bottomBar: some View {
-        HStack {
+        HStack(spacing: 12) {
             SpeedMenu()
             Spacer()
+            ShuffleButton()
             Button {
                 withAnimation(reduceMotion ? nil : .spring(duration: 0.35)) { showsUpNext.toggle() }
             } label: {
@@ -307,6 +308,31 @@ struct SpeedMenu: View {
     /// "1×", "1.25×", "0.75×".
     static func label(_ rate: Float) -> String {
         Double(rate).formatted(.number.precision(.fractionLength(0...2))) + "×"
+    }
+}
+
+/// Shuffle on and off for what's loaded, as in Music: the bit playing
+/// carries on either way.
+struct ShuffleButton: View {
+    @Environment(PlayerService.self) private var player
+
+    var body: some View {
+        let on = player.isShuffled
+        Button {
+            Task { await player.setShuffle(!on) }
+        } label: {
+            Image(systemName: "shuffle")
+                .font(.title3)
+                .frame(width: 44, height: 44)
+                .background(on ? AnyShapeStyle(.white.opacity(0.22)) : AnyShapeStyle(.clear), in: .circle)
+        }
+        .buttonStyle(.plain)
+        .disabled(player.session == nil)
+        .sensoryFeedback(.selection, trigger: on)
+        .accessibilityLabel("Shuffle")
+        .accessibilityValue(on ? "On" : "Off")
+        .accessibilityAddTraits(on ? .isSelected : [])
+        .accessibilityIdentifier("nowPlaying.shuffle")
     }
 }
 

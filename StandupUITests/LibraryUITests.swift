@@ -79,7 +79,6 @@ final class LibraryUITests: StandupUITestCase {
             ("34-library-specials", "library.specials", "library.special.mock-al-lower"),
             ("35-library-bits", "library.bits", "library.bit.mock-al-overthinking-4"),
             ("36-library-recently-added", "library.recentlyAdded", ""),
-            ("37-library-downloads", "library.downloads", ""),
         ]
         for dark in [false, true] {
             var app = launch(tab: "library", extra: ["-StandupLibrary", "seeded"], dark: dark)

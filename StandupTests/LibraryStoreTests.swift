@@ -106,7 +106,7 @@ struct LibraryStoreTests {
         let store = LibraryStore.inMemory(catalog: MockCatalog())
         let parking = try #require(MockData.album(id: "mock-al-parking"))
         store.add(.special(parking))
-        await store.comedianLookup?.value
+        await store.relatedLookup?.value
         #expect(store.comedianIDs == ["mock-ar-dev"])
         #expect(try comedians(in: store).first?.isAutomatic == true)
     }
@@ -117,7 +117,7 @@ struct LibraryStoreTests {
         var fromSearch = try #require(MockData.album(id: "mock-al-parking"))
         fromSearch.artistID = nil
         store.add(.special(fromSearch))
-        await store.comedianLookup?.value
+        await store.relatedLookup?.value
         #expect(store.comedianIDs == ["mock-ar-dev"])
         let saved = try store.container.mainContext.fetch(FetchDescriptor<SavedAlbum>()).first
         #expect(saved?.artistID == "mock-ar-dev")
@@ -127,7 +127,7 @@ struct LibraryStoreTests {
         let store = LibraryStore.inMemory(catalog: MockCatalog())
         let parking = try #require(MockData.album(id: "mock-al-parking"))
         store.add(.special(parking))
-        await store.comedianLookup?.value
+        await store.relatedLookup?.value
         store.remove(.special(parking))
         #expect(store.comedianIDs.isEmpty)
         #expect(try comedians(in: store).isEmpty)
@@ -138,7 +138,7 @@ struct LibraryStoreTests {
         let parking = try #require(MockData.album(id: "mock-al-parking"))
         store.add(.comedian(try #require(MockData.artist(id: "mock-ar-dev"))))
         store.add(.special(parking))
-        await store.comedianLookup?.value
+        await store.relatedLookup?.value
         #expect(try comedians(in: store).first?.isAutomatic == false)
         store.remove(.special(parking))
         #expect(store.comedianIDs == ["mock-ar-dev"])
@@ -149,13 +149,55 @@ struct LibraryStoreTests {
         let lower = try #require(MockData.album(id: "mock-al-lower"))
         let groupChat = try #require(MockData.album(id: "mock-al-groupchat"))
         store.add(.special(lower))
-        await store.comedianLookup?.value
+        await store.relatedLookup?.value
         store.add(.special(groupChat))
-        await store.comedianLookup?.value
+        await store.relatedLookup?.value
         store.remove(.special(lower))
         #expect(store.comedianIDs == ["mock-ar-maya"])
         store.remove(.special(groupChat))
         #expect(store.comedianIDs.isEmpty)
+    }
+
+    // MARK: A special brings its bits
+
+    private func bits(in store: LibraryStore) throws -> [SavedTrack] {
+        try store.container.mainContext.fetch(FetchDescriptor<SavedTrack>(sortBy: [SortDescriptor(\.dateAdded, order: .reverse)]))
+    }
+
+    @Test func addingASpecialAddsItsBitsInOrder() async throws {
+        let store = LibraryStore.inMemory(catalog: MockCatalog())
+        let parking = try #require(MockData.album(id: "mock-al-parking"))
+        let tracks = try #require(MockData.tracks[parking.id])
+        store.add(.special(parking))
+        await store.relatedLookup?.value
+        #expect(store.bitIDs == Set(tracks.map(\.id)))
+        let saved = try bits(in: store)
+        #expect(saved.map(\.songID) == tracks.map(\.id))
+        #expect(saved.allSatisfy(\.isAutomatic))
+    }
+
+    @Test func removingTheSpecialTakesItsBitsButKeepsOnesAddedOnPurpose() async throws {
+        let store = LibraryStore.inMemory(catalog: MockCatalog())
+        let parking = try #require(MockData.album(id: "mock-al-parking"))
+        let tracks = try #require(MockData.tracks[parking.id])
+        store.add(.bit(tracks[1]))
+        store.add(.special(parking))
+        await store.relatedLookup?.value
+        #expect(try bits(in: store).first { $0.songID == tracks[1].id }?.isAutomatic == false)
+        store.remove(.special(parking))
+        #expect(store.bitIDs == [tracks[1].id])
+        #expect(try bits(in: store).map(\.songID) == [tracks[1].id])
+    }
+
+    @Test func removingOneBitOfASpecialLeavesTheRest() async throws {
+        let store = LibraryStore.inMemory(catalog: MockCatalog())
+        let parking = try #require(MockData.album(id: "mock-al-parking"))
+        let tracks = try #require(MockData.tracks[parking.id])
+        store.add(.special(parking))
+        await store.relatedLookup?.value
+        store.remove(.bit(tracks[0]))
+        #expect(store.bitIDs == Set(tracks.dropFirst().map(\.id)))
+        #expect(store.specialIDs == [parking.id])
     }
 
     // MARK: Playback progress

@@ -18,11 +18,15 @@ enum CatalogError: LocalizedError, Equatable {
     case notFound
     /// The item exists but isn't comedy, so the app won't show it.
     case notComedy
+    /// Neither the Comedy chart nor a search turned up any comedy. Carries
+    /// what the chart did return, to tell an empty chart from a failed one.
+    case noComedy(String)
 
     var errorDescription: String? {
         switch self {
         case .notFound: "This isn't in the Apple Music catalog."
         case .notComedy: "Standup only plays comedy, and this isn't tagged as comedy."
+        case .noComedy(let detail): "Apple Music didn't return any comedy here right now. \(detail)"
         }
     }
 }
