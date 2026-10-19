@@ -93,8 +93,13 @@ final class LibraryUITests: StandupUITestCase {
     @MainActor
     func testAddingABitAddsItsComedian() {
         let app = launch(tab: "home", extra: ["-StandupRoute", "album:mock-al-parking"], dark: false)
+        require(element("album.play", in: app), in: app, timeout: 15, "no special page")
+        // The bits list is lazy and starts below the special's notes.
         let row = element("album.track.3", in: app)
-        require(row, in: app, timeout: 15, "no bits")
+        for _ in 0..<3 where !(row.exists && row.isHittable) {
+            app.swipeUp()
+        }
+        require(row, in: app, timeout: 5, "no bits")
         row.press(forDuration: 1.2)
         // Not the toolbar's +, which has the same label.
         let add = app.buttons.matching(NSPredicate(format: "label == %@ AND identifier != %@", "Add to Library", "library.toggle")).firstMatch
