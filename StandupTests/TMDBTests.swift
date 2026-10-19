@@ -132,3 +132,47 @@ struct SpecialsSettingsTests {
         #expect(SpecialsSettings(store: MemoryKeyStore("abc"), check: { _ in }).hasKey)
     }
 }
+
+struct DiscoverTests {
+    @Test func shelvesAskTMDBForTheRightLists() {
+        let now = TMDBClient.day(from: "2026-10-19")!
+        let new = TMDBClient.discoverQuery(keyword: 9716, from: now.addingTimeInterval(-365 * 86_400), to: now, order: .popular, minimumVotes: 0, page: 2)
+        #expect(new["primary_release_date.gte"] == "2025-10-19")
+        #expect(new["sort_by"] == "popularity.desc")
+        #expect(new["page"] == "2")
+        #expect(new["vote_count.gte"] == nil)
+        let essential = TMDBClient.discoverQuery(keyword: 9716, from: nil, to: now, order: .rated, minimumVotes: 50, page: 1)
+        #expect(essential["primary_release_date.gte"] == nil)
+        #expect(essential["sort_by"] == "vote_average.desc")
+        #expect(essential["vote_count.gte"] == "50")
+    }
+
+    @Test func matchesAreRememberedAndMissesRetried() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("matches-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let lower = try #require(MockData.album(id: "mock-al-lower"))
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        var store = SpecialMatchStore(url: url)
+        #expect(store.lookup(1, now: now) == nil)
+        store.record(lower, for: 1, now: now)
+        store.record(nil, for: 2, now: now)
+        store.save()
+
+        let reopened = SpecialMatchStore(url: url)
+        #expect(reopened.lookup(1, now: now.addingTimeInterval(86_400)) == .some(lower))
+        #expect(reopened.lookup(2, now: now.addingTimeInterval(86_400)) == .some(nil))
+        // A miss is looked up again after a few days, a match after a month.
+        #expect(reopened.lookup(2, now: now.addingTimeInterval(4 * 86_400)) == nil)
+        #expect(reopened.lookup(1, now: now.addingTimeInterval(31 * 86_400)) == nil)
+    }
+
+    @Test func mockShelvesAreComedyOnly() async throws {
+        let catalog = MockCatalog()
+        for shelf in DiscoverShelf.allCases {
+            #expect(try await catalog.discover(shelf).allSatisfy { ComedyFilter.isComedy($0.genreNames) })
+        }
+        #expect(try await catalog.trendingComedians().allSatisfy { ComedyFilter.isComedy($0.genreNames) })
+        let new = try await catalog.discover(.new)
+        #expect(new == new.sorted { ($0.releaseDate ?? .distantPast) > ($1.releaseDate ?? .distantPast) })
+    }
+}

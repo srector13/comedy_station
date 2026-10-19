@@ -66,6 +66,23 @@ struct MockCatalog: CatalogProviding {
         )
     }
 
+    /// Home's TMDB shelves, as if TMDB had named the sample specials.
+    func discover(_ shelf: DiscoverShelf) async throws -> [ComedyAlbum] {
+        let specials = ComedyFilter.keep(MockData.albums)
+        switch shelf {
+        case .new:
+            return Array(specials.sorted { ($0.releaseDate ?? .distantPast) > ($1.releaseDate ?? .distantPast) }.prefix(8))
+        case .popular:
+            return ComedyFilter.keep(MockData.chartAlbumIDs.compactMap(MockData.album(id:)))
+        case .essential:
+            return Array(specials.sorted { ($0.releaseDate ?? .distantPast) < ($1.releaseDate ?? .distantPast) }.prefix(8))
+        }
+    }
+
+    func trendingComedians() async throws -> [ComedyArtist] {
+        ComedyFilter.keep(MockData.comedians)
+    }
+
     func playlist(id: String) async throws -> PlaylistDetail {
         guard let playlist = MockData.playlists.first(where: { $0.id == id }) else { throw CatalogError.notFound }
         return PlaylistDetail(playlist: playlist, tracks: ComedyFilter.keep(MockData.playlistTracks(id)))

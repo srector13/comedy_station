@@ -192,6 +192,24 @@ struct ComedyCharts: Hashable, Sendable {
     var isEmpty: Bool { topSpecials.isEmpty && topBits.isEmpty && playlists.isEmpty && newReleases.isEmpty }
 }
 
+/// Home's shelves of specials from TMDB, as their Apple Music versions.
+enum DiscoverShelf: String, CaseIterable, Sendable {
+    /// Out in the last year, newest first.
+    case new
+    /// Most watched lately (the last three years), most popular first.
+    case popular
+    /// Best rated of all time.
+    case essential
+
+    var title: String {
+        switch self {
+        case .new: "New Specials"
+        case .popular: "Popular Specials"
+        case .essential: "Essential Specials"
+        }
+    }
+}
+
 struct SearchResults: Hashable, Sendable {
     var comedians: [ComedyArtist] = []
     var specials: [ComedyAlbum] = []

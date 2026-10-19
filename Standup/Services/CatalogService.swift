@@ -9,6 +9,11 @@ protocol CatalogProviding: Sendable {
     /// Search one service (the Search tab's switch).
     func suggestions(for term: String, in provider: Provider) async throws -> [SearchSuggestion]
     func search(_ term: String, in provider: Provider) async throws -> SearchResults
+    /// A Home shelf of specials from TMDB; empty without a TMDB key.
+    func discover(_ shelf: DiscoverShelf) async throws -> [ComedyAlbum]
+    /// The comedians behind TMDB's new and popular specials; empty without
+    /// a TMDB key.
+    func trendingComedians() async throws -> [ComedyArtist]
     func album(id: String) async throws -> AlbumDetail
     func artist(id: String) async throws -> ArtistDetail
     /// Just the comedian (name, artwork, genres), without their page.
@@ -26,6 +31,15 @@ extension CatalogProviding {
 
     func search(_ term: String, in provider: Provider) async throws -> SearchResults {
         try await search(term)
+    }
+
+    /// Only the Apple Music catalog knows TMDB.
+    func discover(_ shelf: DiscoverShelf) async throws -> [ComedyAlbum] {
+        []
+    }
+
+    func trendingComedians() async throws -> [ComedyArtist] {
+        []
     }
 }
 
@@ -74,6 +88,14 @@ struct RoutingCatalog: CatalogProviding {
 
     func charts() async throws -> ComedyCharts {
         try await appleMusic.charts()
+    }
+
+    func discover(_ shelf: DiscoverShelf) async throws -> [ComedyAlbum] {
+        try await appleMusic.discover(shelf)
+    }
+
+    func trendingComedians() async throws -> [ComedyArtist] {
+        try await appleMusic.trendingComedians()
     }
 
     func playlist(id: String) async throws -> PlaylistDetail {

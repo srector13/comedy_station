@@ -63,7 +63,16 @@ The foot of the Library tab says whether the library is syncing, when it last sy
 
 ## 4. New & Popular Specials from TMDB (optional)
 
-Apple's comedy charts lean on novelty songs and decades-old albums. With a TMDB key, Home and Browse instead show stand-up specials that are new (the last four months) and popular (the last three years) across Netflix, Max, Prime Video and the rest, according to The Movie Database. Each is shown and played as its Apple Music version: same comedian, same title, released around the same time. Specials without one are left out. Bits and playlists still come from Apple's chart.
+Apple's comedy charts lean on novelty songs and decades-old albums. With a TMDB key, Home builds its shelves from The Movie Database's stand-up specials, across Netflix, Max, Prime Video and the rest:
+
+- **New Specials:** out in the last year.
+- **Popular Specials:** the most watched of the last three years.
+- **Trending Comedians:** the comedians behind those specials.
+- **Essential Specials:** the best rated of all time.
+
+Home also adds **More from …** for the comedians in your library.
+
+Each special is shown and played as its Apple Music album: same comedian (searched across their whole Apple Music discography), a matching title, and released around the same time. Specials without one are left out. Matches are remembered on the phone, so only the first load takes a while; a miss is tried again after a few days, because audio often comes out after the video. Bits and playlists still come from Apple's chart.
 
 1. Create an account at [themoviedb.org](https://www.themoviedb.org), then go to **Settings → API → Request an API key**.
 2. Choose **Developer** (personal, non-commercial use) and fill in the short form.

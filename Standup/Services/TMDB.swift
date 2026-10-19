@@ -127,19 +127,37 @@ struct TMDBClient: Sendable {
             ?? keywords.first { $0.name.localizedCaseInsensitiveContains("stand-up") }
     }
 
-    /// Specials with that keyword released in a window, most popular first.
-    func specials(keyword: Int, from start: Date, to end: Date) async throws -> [TMDBSpecial] {
-        let page: Page<TMDBSpecial> = try await get("discover/movie", [
+    /// How a list of specials is ordered.
+    enum Order: String, Sendable {
+        case popular = "popularity.desc"
+        case rated = "vote_average.desc"
+    }
+
+    /// One page (twenty) of specials with that keyword, released in a
+    /// window (open at the start when `start` is nil), in an order; rated
+    /// lists can ask for enough votes to mean something.
+    func specials(keyword: Int, from start: Date?, to end: Date, order: Order = .popular, minimumVotes: Int = 0, page: Int = 1) async throws -> [TMDBSpecial] {
+        let results: Page<TMDBSpecial> = try await get("discover/movie", Self.discoverQuery(keyword: keyword, from: start, to: end, order: order, minimumVotes: minimumVotes, page: page))
+        return results.results
+    }
+
+    static func discoverQuery(keyword: Int, from start: Date?, to end: Date, order: Order, minimumVotes: Int, page: Int) -> [String: String] {
+        var query = [
             "with_keywords": String(keyword),
-            "primary_release_date.gte": Self.day(start),
-            "primary_release_date.lte": Self.day(end),
-            "sort_by": "popularity.desc",
+            "primary_release_date.lte": day(end),
+            "sort_by": order.rawValue,
             "include_adult": "false",
             "include_video": "false",
             "language": "en-US",
-            "page": "1",
-        ])
-        return page.results
+            "page": String(page),
+        ]
+        if let start {
+            query["primary_release_date.gte"] = day(start)
+        }
+        if minimumVotes > 0 {
+            query["vote_count.gte"] = String(minimumVotes)
+        }
+        return query
     }
 
     /// The comedian of a special whose title doesn't name them.

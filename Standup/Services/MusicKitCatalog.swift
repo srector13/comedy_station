@@ -6,8 +6,10 @@ import MusicKit
 /// in-memory cache so going back and forth between pages doesn't refetch.
 actor MusicKitCatalog: CatalogProviding {
     private var cache = ResponseCache(lifetime: 10 * 60)
-    /// The person's TMDB key, from Settings, for New and Popular Specials.
+    /// The person's TMDB key, from Settings, for Home's TMDB shelves.
     private let tmdbKeys: any KeyStoring
+    /// TMDB specials already matched to Apple Music, kept between launches.
+    private var matches = SpecialMatchStore(url: SpecialMatchStore.defaultURL)
 
     init(tmdbKeys: any KeyStoring = KeychainKeyStore.tmdb) {
         self.tmdbKeys = tmdbKeys
@@ -154,12 +156,12 @@ actor MusicKitCatalog: CatalogProviding {
                 if let setup = MusicKitSetupError(error) { throw setup }
                 notes.append("The Comedy chart didn't load (\(error.localizedDescription)).")
             }
-            if let tmdbKey {
-                let external = await tmdbSpecials(TMDBClient(key: tmdbKey))
-                charts.newReleases = external.new
+            if tmdbKey != nil {
+                charts.newReleases = (try? await discover(.new)) ?? []
                 // A handful at least, or Apple's chart reads better.
-                if external.popular.count >= 4 {
-                    charts.topSpecials = external.popular
+                let popular = (try? await discover(.popular)) ?? []
+                if popular.count >= 4 {
+                    charts.topSpecials = popular
                     charts.specialsSource = .popular
                 }
             }
@@ -183,54 +185,156 @@ actor MusicKitCatalog: CatalogProviding {
 
     // MARK: TMDB
 
-    /// TMDB's new (last four months) and popular (last three years)
-    /// stand-up specials, each as its Apple Music version. Specials without
-    /// one are left out, and so is everything when TMDB can't be reached.
-    private func tmdbSpecials(_ client: TMDBClient) async -> (new: [ComedyAlbum], popular: [ComedyAlbum]) {
-        do {
-            let keyword = try await cached("tmdb:keyword") { try await client.standUpKeywordID() }
-            let now = Date.now
-            async let recent = client.specials(keyword: keyword, from: now.addingTimeInterval(-120 * 86_400), to: now)
-            async let popular = client.specials(keyword: keyword, from: now.addingTimeInterval(-3 * 365 * 86_400), to: now)
-            let (newOnes, popularOnes) = try await (recent, popular)
-            let new = await appleMusicVersions(of: Array(newOnes.prefix(20)), client: client)
-                .sorted { ($0.releaseDate ?? .distantPast) > ($1.releaseDate ?? .distantPast) }
-            return (new, await appleMusicVersions(of: Array(popularOnes.prefix(20)), client: client))
-        } catch {
-            return ([], [])
+    /// A Home shelf: TMDB's specials for it, each as its Apple Music album.
+    /// Specials without one are left out.
+    func discover(_ shelf: DiscoverShelf) async throws -> [ComedyAlbum] {
+        guard let key = tmdbKeys.load() else { return [] }
+        return try await cached("discover:\(shelf.rawValue):\(key)") {
+            let client = TMDBClient(key: key)
+            let specials = try await tmdbList(shelf, client: client)
+            var albums = await sixAtATime(specials) { [self] special in
+                await appleMusicVersion(of: special, client: client)
+            }
+            var seen = Set<String>()
+            albums = albums.filter { seen.insert($0.id).inserted }
+            if shelf == .new {
+                albums.sort { ($0.releaseDate ?? .distantPast) > ($1.releaseDate ?? .distantPast) }
+            }
+            matches.save()
+            return albums
         }
     }
 
-    /// The Apple Music versions of specials, in the specials' order, six
-    /// lookups at a time.
-    private func appleMusicVersions(of specials: [TMDBSpecial], client: TMDBClient) async -> [ComedyAlbum] {
-        var found: [Int: ComedyAlbum] = [:]
-        await withTaskGroup(of: (Int, ComedyAlbum?).self) { group in
+    /// The comedians behind TMDB's new and popular specials, most popular
+    /// first, as Apple Music comedians: even when that special isn't on
+    /// Apple Music, they usually are.
+    func trendingComedians() async throws -> [ComedyArtist] {
+        guard let key = tmdbKeys.load() else { return [] }
+        return try await cached("discover:comedians:\(key)") {
+            let client = TMDBClient(key: key)
+            let new = (try? await tmdbList(.new, client: client)) ?? []
+            let popular = (try? await tmdbList(.popular, client: client)) ?? []
+            var names: [String] = []
+            var seen = Set<String>()
+            for special in (new + popular).sorted(by: { $0.popularity > $1.popularity }) where names.count < 24 {
+                if let name = await comedianName(of: special, client: client), seen.insert(SpecialMatcher.normalized(name)).inserted {
+                    names.append(name)
+                }
+            }
+            var ids = Set<String>()
+            let comedians = await sixAtATime(names) { [self] name in await appleComedian(named: name) }
+            return Array(comedians.filter { ids.insert($0.id).inserted }.prefix(15))
+        }
+    }
+
+    /// TMDB's specials for a shelf: three pages of twenty (two for the
+    /// best rated, which need fifty votes to count).
+    private func tmdbList(_ shelf: DiscoverShelf, client: TMDBClient) async throws -> [TMDBSpecial] {
+        try await cached("tmdb:list:\(shelf.rawValue)") {
+            let keyword = try await cached("tmdb:keyword") { try await client.standUpKeywordID() }
+            let now = Date.now
+            var specials: [TMDBSpecial] = []
+            switch shelf {
+            case .new:
+                for page in 1...3 {
+                    specials += try await client.specials(keyword: keyword, from: now.addingTimeInterval(-365 * 86_400), to: now, page: page)
+                }
+            case .popular:
+                for page in 1...3 {
+                    specials += try await client.specials(keyword: keyword, from: now.addingTimeInterval(-3 * 365 * 86_400), to: now, page: page)
+                }
+            case .essential:
+                for page in 1...2 {
+                    specials += try await client.specials(keyword: keyword, from: nil, to: now, order: .rated, minimumVotes: 50, page: page)
+                }
+            }
+            var seen = Set<Int>()
+            return specials.filter { seen.insert($0.id).inserted }
+        }
+    }
+
+    /// A special's Apple Music album. Looked for first among the comedian's
+    /// albums (their whole discography, which finds more than search
+    /// ranking does), then by searching comedian and title. Answers are
+    /// remembered (`SpecialMatchStore`), unless Apple Music couldn't be
+    /// asked.
+    private func appleMusicVersion(of special: TMDBSpecial, client: TMDBClient) async -> ComedyAlbum? {
+        if let known = matches.lookup(special.id) {
+            return known
+        }
+        guard let comedian = await comedianName(of: special, client: client) else { return nil }
+        let title = special.titleParts?.title ?? special.title
+        func best(_ candidates: [ComedyAlbum]) -> ComedyAlbum? {
+            SpecialMatcher.best(comedian: comedian, title: title, released: special.releaseDate, in: candidates)
+        }
+        var asked = false
+        var match: ComedyAlbum?
+        if let artist = await appleComedian(named: comedian), let albums = try? await discography(of: artist.id) {
+            asked = true
+            match = best(albums)
+        }
+        if match == nil, let found = try? await results(for: "\(comedian) \(title)") {
+            asked = true
+            match = best(found.specials)
+        }
+        if asked {
+            matches.record(match, for: special.id)
+        }
+        return match
+    }
+
+    /// The comedian a special names before its colon, or else its
+    /// headliner from TMDB's credits.
+    private func comedianName(of special: TMDBSpecial, client: TMDBClient) async -> String? {
+        if let comedian = special.titleParts?.comedian {
+            return comedian
+        }
+        return try? await cached("tmdb:comedian:\(special.id)") { try await client.comedian(ofSpecial: special.id) }
+    }
+
+    /// The Apple Music comedian with exactly this name.
+    private func appleComedian(named name: String) async -> ComedyArtist? {
+        guard let found = try? await results(for: name) else { return nil }
+        let target = SpecialMatcher.normalized(name)
+        return found.comedians.first { SpecialMatcher.normalized($0.name) == target }
+    }
+
+    /// A comedian's comedy albums, for matching: lighter than their page.
+    private func discography(of artistID: String) async throws -> [ComedyAlbum] {
+        try await cached("discography:\(artistID)") {
+            var request = MusicCatalogResourceRequest<Artist>(matching: \.id, equalTo: MusicItemID(artistID))
+            request.properties = [.albums]
+            guard let artist = try await request.response().items.first, var batch = artist.albums else { return [] }
+            var albums = Array(batch)
+            // A long career runs past the first batch.
+            for _ in 0..<3 {
+                guard batch.hasNextBatch, let next = try await batch.nextBatch() else { break }
+                albums += next
+                batch = next
+            }
+            return ComedyFilter.keep(albums.map(ComedyAlbum.init))
+        }
+    }
+
+    /// `transform` over `items`, six at a time, results in the items' order
+    /// (nil results left out).
+    private func sixAtATime<Item: Sendable, Value: Sendable>(_ items: [Item], _ transform: @escaping @Sendable (Item) async -> Value?) async -> [Value] {
+        var found: [Int: Value] = [:]
+        await withTaskGroup(of: (Int, Value?).self) { group in
             var next = 0
             func addNext() {
-                guard next < specials.count else { return }
-                let index = next, special = specials[index]
-                group.addTask { (index, await self.appleMusicVersion(of: special, client: client)) }
+                guard next < items.count else { return }
+                let index = next, item = items[index]
+                group.addTask { (index, await transform(item)) }
                 next += 1
             }
             for _ in 0..<6 { addNext() }
-            for await (index, album) in group {
-                found[index] = album
+            for await (index, value) in group {
+                found[index] = value
                 addNext()
             }
         }
-        var seen = Set<String>()
-        return specials.indices.compactMap { found[$0] }.filter { seen.insert($0.id).inserted }
-    }
-
-    private func appleMusicVersion(of special: TMDBSpecial, client: TMDBClient) async -> ComedyAlbum? {
-        var comedian = special.titleParts?.comedian
-        let title = special.titleParts?.title ?? special.title
-        if comedian == nil {
-            comedian = try? await cached("tmdb:comedian:\(special.id)") { try await client.comedian(ofSpecial: special.id) }
-        }
-        guard let comedian, let found = try? await results(for: "\(comedian) \(title)") else { return nil }
-        return SpecialMatcher.best(comedian: comedian, title: title, released: special.releaseDate, in: found.specials)
+        return items.indices.compactMap { found[$0] }
     }
 
     /// Comedy found by searching the catalog, for a chart section that has

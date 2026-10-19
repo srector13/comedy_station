@@ -1,12 +1,32 @@
 import SwiftData
 import SwiftUI
 
-/// Home, Music style: Continue Listening (specials left partway, newest
-/// first, each with its progress ring), New Specials and the Top Comedy
-/// chart from the catalog, and Recently Added from the App Library.
+/// Home, Music style, from the top:
+/// - Continue Listening: specials left partway, newest first, each with its
+///   progress ring.
+/// - New Specials and Popular Specials: from TMDB, as their Apple Music
+///   albums, or from Apple's Comedy chart without a TMDB key.
+/// - Trending Comedians: the comedians behind TMDB's new and popular
+///   specials.
+/// - More from …: other specials by comedians in the App Library.
+/// - Essential Specials: TMDB's best rated of all time.
+/// - Recently Added, from the App Library.
+///
+/// Each part loads on its own, so the page fills in as answers arrive.
 struct HomeView: View {
+    /// Other specials by a comedian in the App Library.
+    struct MoreFrom: Identifiable {
+        var comedian: ComedyArtist
+        var specials: [ComedyAlbum]
+        var id: String { comedian.id }
+    }
+
     @State private var path: [Route]
-    @State private var charts: LoadState<ComedyCharts> = .loading
+    @State private var shelves: [DiscoverShelf: [ComedyAlbum]] = [:]
+    @State private var shelvesLoaded = false
+    @State private var charts: LoadState<ComedyCharts>?
+    @State private var trending: [ComedyArtist] = []
+    @State private var moreFrom: [MoreFrom] = []
 
     @Environment(\.catalog) private var catalog
     @Environment(\.play) private var play
@@ -16,9 +36,22 @@ struct HomeView: View {
     @Query(filter: #Predicate<PlaybackProgress> { $0.isAlbum && !$0.finished }, sort: \PlaybackProgress.lastPlayed, order: .reverse)
     private var inProgress: [PlaybackProgress]
     @Query(sort: \SavedAlbum.dateAdded, order: .reverse) private var recentlyAdded: [SavedAlbum]
+    @Query(sort: \SavedComedian.dateAdded, order: .reverse) private var savedComedians: [SavedComedian]
 
     init(initialPath: [Route] = []) {
         _path = State(initialValue: initialPath)
+    }
+
+    /// TMDB's new specials, or else the chart's recent ones.
+    private var newSpecials: [ComedyAlbum] {
+        if let new = shelves[.new], !new.isEmpty { return new }
+        return charts?.value?.newSpecials() ?? []
+    }
+
+    /// TMDB's popular specials when there are enough to rank.
+    private var popular: [ComedyAlbum]? {
+        guard let popular = shelves[.popular], popular.count >= 4 else { return nil }
+        return popular
     }
 
     var body: some View {
@@ -28,14 +61,25 @@ struct HomeView: View {
                     if !inProgress.isEmpty {
                         continueListening
                     }
-                    switch charts {
-                    case .loading:
+                    if !shelvesLoaded && charts == nil {
                         ProgressView()
                             .frame(maxWidth: .infinity, minHeight: 160)
-                    case .failed(let message):
-                        chartsUnavailable(message)
-                    case .loaded(let charts):
-                        catalogShelves(charts)
+                    }
+                    if !newSpecials.isEmpty {
+                        cards(DiscoverShelf.new.title, newSpecials, id: "home.new")
+                    }
+                    rankedSpecials
+                    if !trending.isEmpty {
+                        trendingComedians
+                    }
+                    ForEach(moreFrom) { entry in
+                        let unsaved = entry.specials.filter { !library.specialIDs.contains($0.id) }
+                        if !unsaved.isEmpty {
+                            cards("More from \(entry.comedian.name)", unsaved, id: "home.moreFrom.\(entry.comedian.id)")
+                        }
+                    }
+                    if let essential = shelves[.essential], !essential.isEmpty {
+                        cards(DiscoverShelf.essential.title, essential, id: "home.essential")
                     }
                     if !recentlyAdded.isEmpty {
                         Shelf(title: "Recently Added") {
@@ -48,6 +92,9 @@ struct HomeView: View {
                             }
                         }
                     }
+                    if case .failed(let message) = charts, newSpecials.isEmpty, popular == nil {
+                        chartsUnavailable(message)
+                    }
                 }
                 .padding(.vertical, 12)
             }
@@ -55,8 +102,14 @@ struct HomeView: View {
             .settingsButton()
             .comedyDestinations()
             // Again when the TMDB key changes in Settings.
-            .task(id: specials.revision) { await loadCharts() }
-            .refreshable { await loadCharts() }
+            .task(id: specials.revision) { await loadSpecials() }
+            .task(id: specials.revision) { await loadTrending() }
+            .task(id: savedComedians.prefix(3).map(\.artistID)) { await loadMoreFrom() }
+            .refreshable {
+                await loadSpecials()
+                await loadTrending()
+                await loadMoreFrom()
+            }
         }
     }
 
@@ -85,29 +138,53 @@ struct HomeView: View {
         }
     }
 
-    @ViewBuilder
-    private func catalogShelves(_ charts: ComedyCharts) -> some View {
-        let newSpecials = charts.newSpecials()
-        if !newSpecials.isEmpty {
-            Shelf(title: "New Specials") {
-                ForEach(newSpecials) { album in
-                    NavigationLink(value: Route.album(album)) {
-                        SpecialCard(album: album)
-                    }
-                    .buttonStyle(.plain)
-                    .libraryContextMenu(.special(album))
-                }
-            }
-        }
-        if !charts.topSpecials.isEmpty {
-            RankedGrid(title: charts.specialsSource == .chart ? "Top Comedy" : charts.specialsTitle, items: Array(charts.topSpecials.prefix(12))) { rank, album in
+    /// A shelf of special cards.
+    private func cards(_ title: String, _ albums: [ComedyAlbum], id: String) -> some View {
+        Shelf(title: title) {
+            ForEach(albums.prefix(20)) { album in
                 NavigationLink(value: Route.album(album)) {
-                    RankedRow(rank: charts.specialRank(rank), title: album.title, subtitle: album.artistName, artwork: album.artwork, placeholderTitle: album.title)
+                    SpecialCard(album: album)
                 }
                 .buttonStyle(.plain)
                 .libraryContextMenu(.special(album))
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier(id)
+    }
+
+    /// TMDB's popular specials, or else Apple's Comedy chart, ranked.
+    @ViewBuilder
+    private var rankedSpecials: some View {
+        if let popular {
+            ranked(DiscoverShelf.popular.title, popular, ranks: true)
+        } else if let charts = charts?.value, !charts.topSpecials.isEmpty {
+            ranked(charts.specialsSource == .chart ? "Top Comedy" : charts.specialsTitle, charts.topSpecials, ranks: charts.specialsSource != .search)
+        }
+    }
+
+    private func ranked(_ title: String, _ albums: [ComedyAlbum], ranks: Bool) -> some View {
+        RankedGrid(title: title, items: Array(albums.prefix(20))) { rank, album in
+            NavigationLink(value: Route.album(album)) {
+                RankedRow(rank: ranks ? rank : nil, title: album.title, subtitle: album.artistName, artwork: album.artwork, placeholderTitle: album.title)
+            }
+            .buttonStyle(.plain)
+            .libraryContextMenu(.special(album))
+        }
+    }
+
+    private var trendingComedians: some View {
+        Shelf(title: "Trending Comedians") {
+            ForEach(trending) { comedian in
+                NavigationLink(value: Route.artist(comedian)) {
+                    ComedianBubble(artist: comedian)
+                }
+                .buttonStyle(.plain)
+                .libraryContextMenu(.comedian(comedian))
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("home.trending")
     }
 
     private func chartsUnavailable(_ message: String) -> some View {
@@ -117,20 +194,52 @@ struct HomeView: View {
             Text(message)
         } actions: {
             Button("Try Again") {
-                Task { await loadCharts() }
+                Task { await loadSpecials() }
             }
             .buttonStyle(.glass)
         }
     }
 
-    private func loadCharts() async {
+    // MARK: Loading
+
+    /// TMDB's shelves, each shown as it arrives; Apple's chart only when
+    /// TMDB leaves New or Popular short (no key, or nothing matched).
+    private func loadSpecials() async {
+        let catalog = self.catalog
+        await withTaskGroup(of: (DiscoverShelf, [ComedyAlbum]).self) { group in
+            for shelf in DiscoverShelf.allCases {
+                group.addTask { (shelf, (try? await catalog.discover(shelf)) ?? []) }
+            }
+            for await (shelf, albums) in group {
+                shelves[shelf] = albums
+            }
+        }
+        shelvesLoaded = true
+        guard (shelves[.new] ?? []).isEmpty || popular == nil else { return }
         do {
             charts = .loaded(try await catalog.charts())
         } catch {
-            if charts.value == nil {
+            if charts?.value == nil {
                 charts = .failed(error.localizedDescription)
             }
         }
+    }
+
+    private func loadTrending() async {
+        trending = (try? await catalog.trendingComedians()) ?? []
+    }
+
+    /// The three comedians added to the App Library most recently, with
+    /// their specials.
+    private func loadMoreFrom() async {
+        var found: [MoreFrom] = []
+        for saved in savedComedians.prefix(3) {
+            let comedian = saved.comedian
+            if let detail = try? await catalog.artist(id: comedian.id) {
+                found.append(MoreFrom(comedian: comedian, specials: detail.specials))
+            }
+        }
+        moreFrom = found
     }
 }
 

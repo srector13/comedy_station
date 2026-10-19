@@ -13,6 +13,17 @@ final class HomeBrowseUITests: StandupUITestCase {
             snap("50-home", dark: dark)
             app.swipeUp()
             snap("51-home-scrolled", dark: dark)
+            // Further down: Trending Comedians, More from …, Essential Specials.
+            for _ in 0..<4 where !element("home.trending", in: app).exists {
+                app.swipeUp()
+            }
+            require(element("home.trending", in: app), in: app, timeout: 5, "no Trending Comedians")
+            snap("51b-home-trending", dark: dark)
+            for _ in 0..<4 where !element("home.essential", in: app).exists {
+                app.swipeUp()
+            }
+            require(element("home.essential", in: app), in: app, timeout: 5, "no Essential Specials")
+            snap("51c-home-essential", dark: dark)
             app.terminate()
 
             app = launch(tab: "browse", dark: dark)
