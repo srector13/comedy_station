@@ -107,7 +107,12 @@ final class LibraryUITests: StandupUITestCase {
         add.tap()
         require(element("library.feedback", in: app), in: app, timeout: 5, "no Added to Library confirmation")
 
-        app.tabBars.buttons["Library"].tap()
+        // Scrolling down minimized the tab bar; scrolling back brings it out.
+        let libraryTab = app.tabBars.buttons["Library"]
+        for _ in 0..<3 where !libraryTab.exists {
+            app.swipeDown()
+        }
+        libraryTab.tap()
         element("library.comedians", in: app).tap()
         require(element("library.comedian.mock-ar-dev", in: app), in: app, "the bit's comedian isn't in the library")
         app.navigationBars.buttons["BackButton"].tap()

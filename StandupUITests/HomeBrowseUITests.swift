@@ -68,8 +68,10 @@ final class HomeBrowseUITests: StandupUITestCase {
         let remove = app.buttons["Remove from Continue Listening"]
         require(remove, in: app, timeout: 5, "no context menu")
         remove.tap()
+        // The menu closes before the action runs, and a busy simulator can
+        // take seconds per check, so this waits as long as the others.
         let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: card)
-        XCTAssertEqual(XCTWaiter.wait(for: [gone], timeout: 5), .completed, "still on Continue Listening")
+        XCTAssertEqual(XCTWaiter.wait(for: [gone], timeout: 15), .completed, "still on Continue Listening")
     }
 
     /// The biggest accessibility text size on the busiest screens.
