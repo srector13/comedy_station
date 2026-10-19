@@ -157,7 +157,6 @@ struct AlbumView: View {
             .padding(.top, 14)
         }
         .frame(maxWidth: .infinity)
-        .accessibilityIdentifier("album.header")
     }
 
     private func notesRow(_ notes: String) -> some View {

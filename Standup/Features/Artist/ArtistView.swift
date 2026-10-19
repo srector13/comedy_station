@@ -118,7 +118,6 @@ struct ArtistView: View {
                 .padding(.bottom, 18)
             }
             .clipped()
-            .accessibilityIdentifier("artist.hero")
     }
 
     @ViewBuilder

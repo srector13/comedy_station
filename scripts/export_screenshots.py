@@ -32,6 +32,9 @@ def main(bundle: str, out: str) -> int:
             suggested = attachment.get("suggestedHumanReadableName") or exported.name
             # "01-onboarding-light_0_<UUID>.png" -> "01-onboarding-light.png"
             name = re.sub(r"_\d+_[0-9A-Fa-f-]{8,}(?=\.\w+$)", "", suggested)
+            # Artifact uploads refuse " : < > | * ? and control characters,
+            # which Xcode's automatic failure descriptions contain.
+            name = re.sub(r'[\x00-\x1f":<>|*?\\/`]', "_", name)
             target = Path(out) / name
             if target.exists():
                 target = target.with_stem(f"{target.stem}-{count}")
