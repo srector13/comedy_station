@@ -67,6 +67,21 @@ struct MockCatalogTests {
         }
     }
 
+    /// A comedian filed under books counts by their comedy special:
+    /// in search, on their page and on their own.
+    @Test func aComedianFiledUnderBooksIsFound() async throws {
+        #expect(try await catalog.search("rick").comedians.map(\.name) == ["Rick Alvarez"])
+        #expect(try await catalog.suggestions(for: "rick").map(\.title).contains("Rick Alvarez"))
+        let page = try await catalog.artist(id: "mock-ar-rick")
+        #expect(page.specials.map(\.title) == ["Mostly True Stories"])
+        #expect(ComedyFilter.isComedy(page.artist.genreNames))
+        #expect(ComedyFilter.isComedy(try await catalog.comedian(id: "mock-ar-rick").genreNames))
+        #expect(try await catalog.trendingComedians().contains { $0.id == "mock-ar-rick" })
+        await #expect(throws: CatalogError.notComedy) {
+            try await catalog.comedian(id: "mock-ar-nova")
+        }
+    }
+
     @Test func routesResolveFromLaunchValues() {
         #expect(MockCatalog.route(for: "album:mock-al-lower") == .album(MockData.albums[0]))
         #expect(MockCatalog.route(for: "artist:mock-ar-maya") == .artist(MockData.comedians[0]))

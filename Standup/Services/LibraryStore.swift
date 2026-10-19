@@ -40,11 +40,15 @@ final class LibraryStore {
     private(set) var feedback: Feedback?
     private(set) var syncStatus = SyncStatus.local
 
-    /// Looks up a special's comedian and bits when it's added
-    /// (`addRelated(to:)`).
+    /// Looks up a special's comedian and bits, or a bit's comedian, when
+    /// it's added (`addRelated(to:)`, `addComedian(of:)`).
     @ObservationIgnored private let catalog: (any CatalogProviding)?
-    /// The latest such lookup, so tests can wait for it.
+    /// Those lookups, run one after another; this is the last, so tests
+    /// can wait for all of them.
     @ObservationIgnored private(set) var relatedLookup: Task<Void, Never>?
+    /// The on-disk store only: libraries saved before every special and bit
+    /// brought its comedian get them once (`addMissingComediansOnce()`).
+    @ObservationIgnored private var repairsMissingComedians = false
     @ObservationIgnored private var syncObserver: (any NSObjectProtocol)?
 
     private var context: ModelContext { container.mainContext }
@@ -64,6 +68,7 @@ final class LibraryStore {
         }
         do {
             let store = LibraryStore(container: try diskContainer(.private(containerID)), catalog: catalog)
+            store.repairsMissingComedians = true
             store.syncStatus = .starting
             store.observeSync()
             store.mergeSyncedDuplicates()
@@ -77,6 +82,7 @@ final class LibraryStore {
     private static func local(catalog: any CatalogProviding, status: SyncStatus) -> LibraryStore {
         do {
             let store = LibraryStore(container: try diskContainer(.none), catalog: catalog)
+            store.repairsMissingComedians = true
             store.syncStatus = status
             return store
         } catch {
@@ -146,14 +152,16 @@ final class LibraryStore {
     // MARK: Writing
 
     /// Adds an item. A special brings its comedian and its bits along
-    /// (`addRelated(to:)`).
+    /// (`addRelated(to:)`), and a bit its comedian (`addComedian(of:)`).
     func add(_ item: LibraryItem, at date: Date = .now) {
         guard !contains(item) else { return }
         insert(item, at: date)
         save()
         feedback = Feedback(message: "Added to Library", symbol: "checkmark")
-        if case .special(let album) = item {
-            addRelated(to: album, at: date)
+        switch item {
+        case .special(let album): addRelated(to: album, at: date)
+        case .bit(let track): addComedian(of: track, at: date)
+        case .comedian: break
         }
     }
 
@@ -173,8 +181,12 @@ final class LibraryStore {
                 removeAutomaticComedian(artistID)
             }
         case .bit:
+            let artistID = savedTrack(id)?.artistID
             delete(FetchDescriptor<SavedTrack>(predicate: #Predicate { $0.songID == id }))
             bitIDs.remove(id)
+            if let artistID {
+                removeAutomaticComedian(artistID)
+            }
         }
         save()
         feedback = Feedback(message: "Removed from Library", symbol: "minus")
@@ -208,32 +220,73 @@ final class LibraryStore {
     /// Adds the special's bits and its comedian too, as Music adds an
     /// album's songs and artist. Both come from the catalog (the special's
     /// page, which carries its artist ID even when search didn't), and the
-    /// comedian goes through the comedy filter. Offline, the special stays
+    /// comedian goes through the comedy check. Offline, the special stays
     /// saved on its own.
     private func addRelated(to album: ComedyAlbum, at date: Date) {
-        guard let catalog else { return }
-        relatedLookup = Task { [weak self] in
-            guard let detail = try? await catalog.album(id: album.id) else { return }
-            guard let self, self.specialIDs.contains(album.id) else { return }
-            self.addAutomaticBits(detail.tracks, at: date)
+        lookUp { store, catalog in
+            guard let detail = try? await catalog.album(id: album.id), store.specialIDs.contains(album.id) else { return }
             let artistID = album.artistID ?? detail.album.artistID
-            self.savedAlbum(album.id)?.artistID = artistID
-            self.save()
-            guard let artistID, !self.comedianIDs.contains(artistID),
-                  let comedian = try? await catalog.comedian(id: artistID),
-                  self.specialIDs.contains(album.id), !self.comedianIDs.contains(comedian.id)
-            else { return }
-            self.insert(.comedian(comedian), at: date, automatic: true)
-            self.save()
+            store.addAutomaticBits(detail.tracks, artistID: artistID, at: date)
+            store.savedAlbum(album.id)?.artistID = artistID
+            store.save()
+            if let artistID {
+                await store.addAutomaticComedian(artistID, at: date) { store.specialIDs.contains(album.id) }
+            }
         }
+    }
+
+    /// Adds a bit's comedian too, found through its special's page (bits
+    /// don't carry their artist).
+    private func addComedian(of track: ComedyTrack, at date: Date) {
+        guard let albumID = track.albumID else { return }
+        lookUp { store, catalog in
+            guard let artistID = try? await catalog.album(id: albumID).album.artistID,
+                  let bit = store.savedTrack(track.id)
+            else { return }
+            bit.artistID = artistID
+            store.save()
+            await store.addAutomaticComedian(artistID, at: date) { store.bitIDs.contains(track.id) }
+        }
+    }
+
+    /// Runs a catalog lookup after the ones before it, so two saves in a
+    /// row can't both add the same comedian.
+    private func lookUp(_ work: @escaping @MainActor (LibraryStore, any CatalogProviding) async -> Void) {
+        guard let catalog else { return }
+        let previous = relatedLookup
+        relatedLookup = Task { [weak self] in
+            await previous?.value
+            guard let self else { return }
+            await work(self, catalog)
+        }
+    }
+
+    /// Adds the comedian behind a saved special or bit, marked as added
+    /// along with it, when they pass the comedy check and `stillSaved` says
+    /// what brought them is still here. False when the catalog couldn't
+    /// say (offline), so the repair tries again.
+    @discardableResult
+    private func addAutomaticComedian(_ artistID: String, at date: Date, stillSaved: () -> Bool) async -> Bool {
+        guard let catalog, !comedianIDs.contains(artistID) else { return true }
+        let comedian: ComedyArtist
+        do {
+            comedian = try await catalog.comedian(id: artistID)
+        } catch {
+            // Not a comedian, or not in the catalog, is an answer.
+            return error is CatalogError
+        }
+        guard stillSaved(), !comedianIDs.contains(comedian.id) else { return true }
+        insert(.comedian(comedian), at: date, automatic: true)
+        save()
+        return true
     }
 
     /// The special's bits, in track order, except any already saved. Each
     /// is a millisecond older than the one before, so the Bits list (newest
     /// first) shows them in the special's order.
-    private func addAutomaticBits(_ tracks: [ComedyTrack], at date: Date) {
+    private func addAutomaticBits(_ tracks: [ComedyTrack], artistID: String?, at date: Date) {
         for (offset, track) in tracks.enumerated() where !bitIDs.contains(track.id) {
-            insert(.bit(track), at: date.addingTimeInterval(-Double(offset) / 1000), automatic: true)
+            insert(.bit(track), at: date.addingTimeInterval(-Double(offset) / 1000), automatic: true, artistID: artistID)
         }
     }
 
@@ -248,16 +301,72 @@ final class LibraryStore {
         }
     }
 
-    /// Removes a comedian who was only here because of their specials, once
-    /// the last one is gone.
+    /// Removes a comedian who was only here because of their specials and
+    /// bits, once the last of those is gone.
     private func removeAutomaticComedian(_ artistID: String) {
-        let stillHasSpecials = ((try? context.fetchCount(FetchDescriptor<SavedAlbum>(predicate: #Predicate { $0.artistID == artistID }))) ?? 0) > 0
-        guard !stillHasSpecials,
+        guard savedItemCount(by: artistID) == 0,
               let comedian = try? context.fetch(FetchDescriptor<SavedComedian>(predicate: #Predicate { $0.artistID == artistID })).first,
               comedian.isAutomatic
         else { return }
         context.delete(comedian)
         comedianIDs.remove(artistID)
+    }
+
+    // MARK: Comedians missing from earlier versions
+
+    /// Runs `addMissingComedians()` once on the on-disk store, again each
+    /// launch until it gets every answer.
+    func addMissingComediansOnce(defaults: UserDefaults = .standard) async {
+        let key = "Standup.addedMissingComedians.v1"
+        guard repairsMissingComedians, !defaults.bool(forKey: key) else { return }
+        if await addMissingComedians() {
+            defaults.set(true, forKey: key)
+        }
+    }
+
+    /// Adds the comedians earlier versions left out: those Apple files
+    /// under another genre, and every bit's (bits brought none). Each is
+    /// marked as added along with their specials and bits, and dated with
+    /// the earliest of them. Returns whether the catalog answered for all.
+    @discardableResult
+    func addMissingComedians() async -> Bool {
+        guard let catalog else { return true }
+        var complete = true
+        // The saved items first, as values: the person can remove one while
+        // a lookup is out.
+        let specials = ((try? context.fetch(FetchDescriptor<SavedAlbum>())) ?? []).map { (id: $0.albumID, artistID: $0.artistID, date: $0.dateAdded) }
+        let bits = ((try? context.fetch(FetchDescriptor<SavedTrack>())) ?? []).map { (id: $0.songID, albumID: $0.albumID, artistID: $0.artistID, date: $0.dateAdded) }
+        var earliest: [String: Date] = [:]
+
+        for special in specials {
+            var artistID = special.artistID
+            if artistID == nil {
+                guard let detail = try? await catalog.album(id: special.id) else { complete = false; continue }
+                artistID = detail.album.artistID
+                savedAlbum(special.id)?.artistID = artistID
+            }
+            if let artistID {
+                earliest[artistID] = min(earliest[artistID] ?? special.date, special.date)
+            }
+        }
+        for bit in bits {
+            var artistID = bit.artistID
+            if artistID == nil, let albumID = bit.albumID {
+                guard let detail = try? await catalog.album(id: albumID) else { complete = false; continue }
+                artistID = detail.album.artistID
+                savedTrack(bit.id)?.artistID = artistID
+            }
+            if let artistID {
+                earliest[artistID] = min(earliest[artistID] ?? bit.date, bit.date)
+            }
+        }
+        save()
+
+        for (artistID, date) in earliest.sorted(by: { $0.value < $1.value }) where !comedianIDs.contains(artistID) {
+            let answered = await addAutomaticComedian(artistID, at: date) { savedItemCount(by: artistID) > 0 }
+            complete = complete && answered
+        }
+        return complete
     }
 
     // MARK: iCloud
@@ -310,6 +419,7 @@ final class LibraryStore {
         for copies in duplicates(SavedTrack.self, by: \.songID) {
             let keep = copies.min { $0.dateAdded < $1.dateAdded }!
             keep.isAutomatic = copies.allSatisfy(\.isAutomatic)
+            keep.artistID = keep.artistID ?? copies.lazy.compactMap(\.artistID).first
             delete(copies, except: keep)
             merged = true
         }
@@ -340,9 +450,21 @@ final class LibraryStore {
         try? context.fetch(FetchDescriptor<SavedAlbum>(predicate: #Predicate { $0.albumID == id })).first
     }
 
+    private func savedTrack(_ id: String) -> SavedTrack? {
+        try? context.fetch(FetchDescriptor<SavedTrack>(predicate: #Predicate { $0.songID == id })).first
+    }
+
+    /// The specials and bits saved by this comedian.
+    private func savedItemCount(by artistID: String) -> Int {
+        let specials = (try? context.fetchCount(FetchDescriptor<SavedAlbum>(predicate: #Predicate { $0.artistID == artistID }))) ?? 0
+        let bits = (try? context.fetchCount(FetchDescriptor<SavedTrack>(predicate: #Predicate { $0.artistID == artistID }))) ?? 0
+        return specials + bits
+    }
+
     // MARK: Helpers
 
-    private func insert(_ item: LibraryItem, at date: Date, automatic: Bool = false) {
+    /// `artistID` is a bit's comedian, when known.
+    private func insert(_ item: LibraryItem, at date: Date, automatic: Bool = false, artistID: String? = nil) {
         switch item {
         case .comedian(let artist):
             context.insert(SavedComedian(artist, dateAdded: date, isAutomatic: automatic))
@@ -351,7 +473,7 @@ final class LibraryStore {
             context.insert(SavedAlbum(album, dateAdded: date))
             specialIDs.insert(album.id)
         case .bit(let track):
-            context.insert(SavedTrack(track, dateAdded: date, isAutomatic: automatic))
+            context.insert(SavedTrack(track, artistID: artistID, dateAdded: date, isAutomatic: automatic))
             bitIDs.insert(track.id)
         }
     }

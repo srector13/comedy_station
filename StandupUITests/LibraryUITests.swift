@@ -71,6 +71,62 @@ final class LibraryUITests: StandupUITestCase {
         require(element("library.comedian.mock-ar-maya", in: app), in: app, "the comedian isn't in the library")
     }
 
+    /// A special added from Home's context menu brings its comedian to
+    /// Library → Comedians.
+    @MainActor
+    func testAddingASpecialFromHomeAddsItsComedian() {
+        let app = launch(tab: "home", dark: false)
+        let card = element("home.new.mock-al-lower", in: app)
+        require(card, in: app, timeout: 15, "no New Specials card")
+        card.press(forDuration: 1.2)
+        let add = app.buttons["Add to Library"]
+        require(add, in: app, timeout: 5, "no context menu")
+        add.tap()
+        require(element("library.feedback", in: app), in: app, timeout: 5, "no Added to Library confirmation")
+
+        app.tabBars.buttons["Library"].tap()
+        element("library.comedians", in: app).tap()
+        require(element("library.comedian.mock-ar-maya", in: app), in: app, "the special's comedian isn't in the library")
+    }
+
+    /// A bit added on its own brings its comedian too.
+    @MainActor
+    func testAddingABitAddsItsComedian() {
+        let app = launch(tab: "home", extra: ["-StandupRoute", "album:mock-al-parking"], dark: false)
+        let row = element("album.track.3", in: app)
+        require(row, in: app, timeout: 15, "no bits")
+        row.press(forDuration: 1.2)
+        // Not the toolbar's +, which has the same label.
+        let add = app.buttons.matching(NSPredicate(format: "label == %@ AND identifier != %@", "Add to Library", "library.toggle")).firstMatch
+        require(add, in: app, timeout: 5, "no context menu")
+        add.tap()
+        require(element("library.feedback", in: app), in: app, timeout: 5, "no Added to Library confirmation")
+
+        app.tabBars.buttons["Library"].tap()
+        element("library.comedians", in: app).tap()
+        require(element("library.comedian.mock-ar-dev", in: app), in: app, "the bit's comedian isn't in the library")
+        app.navigationBars.buttons["BackButton"].tap()
+        element("library.bits", in: app).tap()
+        require(element("library.bit.mock-al-parking-4", in: app), in: app, "the bit isn't in the library")
+        XCTAssertFalse(element("library.bit.mock-al-parking-1", in: app).exists, "the rest of the special came along")
+    }
+
+    /// Apple files some comedians under another genre (books); their comedy
+    /// special still brings them.
+    @MainActor
+    func testAComedianFiledUnderBooksComesWithTheirSpecial() {
+        let app = launch(tab: "home", extra: ["-StandupRoute", "album:mock-al-memoir"], dark: false)
+        let toggle = app.buttons["library.toggle"]
+        require(toggle, in: app, timeout: 15, "no + button")
+        toggle.tap()
+        require(element("library.feedback", in: app), in: app, timeout: 5, "no confirmation")
+
+        app.tabBars.buttons["Library"].tap()
+        element("library.comedians", in: app).tap()
+        require(element("library.comedian.mock-ar-rick", in: app), in: app, "the comedian filed under books wasn't added")
+        snap("37-library-comedian-from-special", dark: false)
+    }
+
     /// A bit tapped on Library → Bits plays the whole library of bits as
     /// one queue (so Shuffle mixes them all), and its row shows it playing.
     @MainActor

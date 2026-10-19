@@ -158,6 +158,106 @@ struct LibraryStoreTests {
         #expect(store.comedianIDs.isEmpty)
     }
 
+    /// Apple files some comedians under another genre (books); their comedy
+    /// special still makes them one.
+    @Test func aComedianFiledUnderBooksComesWithTheirSpecial() async throws {
+        let store = LibraryStore.inMemory(catalog: MockCatalog())
+        store.add(.special(try #require(MockData.album(id: "mock-al-memoir"))))
+        await store.relatedLookup?.value
+        #expect(store.comedianIDs == ["mock-ar-rick"])
+        #expect(ComedyFilter.isComedy(try comedians(in: store).first?.genreNames))
+    }
+
+    // MARK: A bit brings its comedian
+
+    @Test func addingABitAddsItsComedian() async throws {
+        let store = LibraryStore.inMemory(catalog: MockCatalog())
+        let bit = try #require(MockData.tracks["mock-al-parking"]?[3])
+        store.add(.bit(bit))
+        await store.relatedLookup?.value
+        #expect(store.comedianIDs == ["mock-ar-dev"])
+        #expect(try comedians(in: store).first?.isAutomatic == true)
+        #expect(try bits(in: store).map(\.artistID) == ["mock-ar-dev"])
+        // Only the bit: its special and the rest of its bits stay out.
+        #expect(store.specialIDs.isEmpty)
+        #expect(store.bitIDs == [bit.id])
+    }
+
+    @Test func removingTheBitTakesAnAddedAlongComedianWithIt() async throws {
+        let store = LibraryStore.inMemory(catalog: MockCatalog())
+        let bit = try #require(MockData.tracks["mock-al-parking"]?[3])
+        store.add(.bit(bit))
+        await store.relatedLookup?.value
+        store.remove(.bit(bit))
+        #expect(store.comedianIDs.isEmpty)
+        #expect(try comedians(in: store).isEmpty)
+    }
+
+    @Test func theComedianStaysWhileABitOfTheirsIsSaved() async throws {
+        let store = LibraryStore.inMemory(catalog: MockCatalog())
+        let parking = try #require(MockData.album(id: "mock-al-parking"))
+        let otherBit = try #require(MockData.tracks["mock-al-smalltalk"]?[2])
+        store.add(.bit(otherBit))
+        store.add(.special(parking))
+        await store.relatedLookup?.value
+        #expect(try comedians(in: store).count == 1)
+        store.remove(.special(parking))
+        #expect(store.comedianIDs == ["mock-ar-dev"])
+        store.remove(.bit(otherBit))
+        #expect(store.comedianIDs.isEmpty)
+    }
+
+    @Test func removingABitOfASavedSpecialKeepsTheComedian() async throws {
+        let store = LibraryStore.inMemory(catalog: MockCatalog())
+        let parking = try #require(MockData.album(id: "mock-al-parking"))
+        store.add(.special(parking))
+        await store.relatedLookup?.value
+        store.remove(.bit(try #require(MockData.tracks[parking.id]?.first)))
+        #expect(store.comedianIDs == ["mock-ar-dev"])
+    }
+
+    // MARK: Comedians earlier versions left out
+
+    @Test func theRepairAddsMissingComedians() async throws {
+        let old = LibraryStore.inMemory()
+        let context = old.container.mainContext
+        let early = Date(timeIntervalSince1970: 1_700_000_000)
+        // As earlier versions saved them: a books-genre comedian's special
+        // without its comedian, a special from search without its artist,
+        // and a bit on its own.
+        context.insert(SavedAlbum(try #require(MockData.album(id: "mock-al-memoir")), dateAdded: early))
+        var fromSearch = try #require(MockData.album(id: "mock-al-parking"))
+        fromSearch.artistID = nil
+        context.insert(SavedAlbum(fromSearch, dateAdded: early.addingTimeInterval(60)))
+        context.insert(SavedTrack(try #require(MockData.tracks["mock-al-laundromat"]?[2]), dateAdded: early.addingTimeInterval(120)))
+        context.insert(SavedComedian(try #require(MockData.artist(id: "mock-ar-maya")), dateAdded: early))
+        try context.save()
+
+        let store = LibraryStore(container: old.container, catalog: MockCatalog())
+        #expect(await store.addMissingComedians())
+        #expect(store.comedianIDs == ["mock-ar-maya", "mock-ar-rick", "mock-ar-dev", "mock-ar-lou"])
+        let added = try comedians(in: store).filter { $0.artistID != "mock-ar-maya" }
+        #expect(added.allSatisfy { $0.isAutomatic })
+        #expect(added.first { $0.artistID == "mock-ar-rick" }?.dateAdded == early)
+        #expect(try context.fetch(FetchDescriptor<SavedAlbum>()).first { $0.albumID == "mock-al-parking" }?.artistID == "mock-ar-dev")
+        #expect(try bits(in: store).first?.artistID == "mock-ar-lou")
+
+        // Run again, nothing changes; and removing the bit takes Lou too.
+        #expect(await store.addMissingComedians())
+        #expect(try comedians(in: store).count == 4)
+        store.remove(.bit(try #require(MockData.tracks["mock-al-laundromat"]?[2])))
+        #expect(!store.comedianIDs.contains("mock-ar-lou"))
+    }
+
+    /// Mock mode, previews and tests keep their library as it was seeded.
+    @Test func theRepairRunsOnlyOnTheDiskStore() async throws {
+        let store = LibraryStore.inMemory(catalog: MockCatalog())
+        store.container.mainContext.insert(SavedAlbum(try #require(MockData.album(id: "mock-al-memoir"))))
+        let defaults = try #require(UserDefaults(suiteName: "LibraryStoreTests-\(UUID().uuidString)"))
+        await store.addMissingComediansOnce(defaults: defaults)
+        #expect(store.comedianIDs.isEmpty)
+    }
+
     // MARK: A special brings its bits
 
     private func bits(in store: LibraryStore) throws -> [SavedTrack] {

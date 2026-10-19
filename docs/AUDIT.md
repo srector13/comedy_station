@@ -26,7 +26,8 @@ The App Library keeps `MusicItemID`s and re-loads items from the catalog. It nev
 
 ## 3. Comedy only
 
-- Every catalog result passes `ComedyFilter.keep` / `isComedy`. An item is kept when any of its genre names contains "comedy", ignoring case. That covers search results, suggestions, album and artist pages (specials, top bits, similar comedians), charts, playlists, and the comedian looked up when a special is added.
+- Every catalog result passes `ComedyFilter.keep` / `isComedy`. An item is kept when any of its genre names contains "comedy", ignoring case. That covers search results, suggestions, album and artist pages (specials, top bits, similar comedians), charts, playlists, and the comedian looked up when a special or bit is added.
+- Apple files some comedians under another genre (Tom Segura is "Biographies & Memoirs"). A comedian also counts when one of their specials passes the filter (`ComedyFilter.comedian`). Their genres then gain "Comedy", so later checks agree. In search, the special must be in the same results under the comedian's name.
 - A bit (song) counts only if its album is comedy. One batched request loads the albums.
 - New and Popular Specials can come from TMDB. TMDB only names specials. Each one is shown only as its Apple Music album, matched by comedian, title and release date (`SpecialMatcher`), and only after that album passes the same filter. Specials with no comedy album on Apple Music aren't shown.
 - Genre ID 3 is used only for `MusicCatalogChartsRequest(genre:)`. The chart's results are still filtered by name. When the chart has no comedy specials or bits, Home and Browse fill that section from catalog searches for comedy, through the same filter, and label it without chart ranks.

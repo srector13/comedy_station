@@ -27,6 +27,9 @@ MusicKit can't play in the Simulator, so CI tests playback with a mock engine. T
 6. **Finish.** Seek to the last 20 seconds of the last bit and let it end. Opening the special again shows **Play**, and it starts at bit 1.
 7. **Shuffle.** Shuffle on a special plays its bits in a mixed order. Shuffle on a comedian plays a mix of their top bits.
 8. **Library.** Add a special with +. Its comedian appears under Library → Comedians. Remove the special, and the comedian goes too, unless you had added them yourself.
+   - Try a comedian Apple files under books, such as Tom Segura. Add one of his specials from Home (touch and hold → Add to Library). He appears under Comedians.
+   - Add a single bit from a special's page (touch and hold). Its comedian appears under Comedians too.
+   - Specials saved with an earlier version get their missing comedians the first time this version opens.
 9. **Listening history (rule 2).** Open the Music app → Home / Recently Played. Nothing you played in Standup appears. Next month's Replay shouldn't count it either.
 10. **Apple Music library (rule 1).** Open Music → Library. Nothing you added in Standup is there.
 

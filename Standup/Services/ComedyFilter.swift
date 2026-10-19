@@ -17,4 +17,30 @@ enum ComedyFilter {
     static func keep<Item: GenreTagged>(_ items: some Sequence<Item>) -> [Item] {
         items.filter { isComedy($0.genreNames) }
     }
+
+    /// A comedian Apple files under another genre (Tom Segura is
+    /// "Biographies & Memoirs") still counts when one of their specials is
+    /// comedy. Their genres then gain "Comedy", so every later check
+    /// agrees. Nil when they're neither.
+    static func comedian(_ artist: ComedyArtist, specials: some Sequence<ComedyAlbum>) -> ComedyArtist? {
+        if isComedy(artist.genreNames) {
+            return artist
+        }
+        guard specials.contains(where: { isComedy($0.genreNames) }) else { return nil }
+        var tagged = artist
+        tagged.genreNames.append("Comedy")
+        return tagged
+    }
+
+    /// The comedians among search results, judged as above by the specials
+    /// in the same results. Those rarely carry their artist's ID, so a
+    /// special counts when its artist has the comedian's name.
+    static func comedians(_ artists: [ComedyArtist], specials: [ComedyAlbum]) -> [ComedyArtist] {
+        artists.compactMap { artist in
+            let name = SpecialMatcher.normalized(artist.name)
+            return comedian(artist, specials: specials.lazy.filter {
+                $0.artistID == artist.id || SpecialMatcher.normalized($0.artistName) == name
+            })
+        }
+    }
 }

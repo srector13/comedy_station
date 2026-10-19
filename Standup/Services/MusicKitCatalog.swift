@@ -23,7 +23,16 @@ actor MusicKitCatalog: CatalogProviding {
             default: nil
             }
         }
-        return ComedyFilter.keep(suggestions)
+        let specials = suggestions.compactMap { suggestion -> ComedyAlbum? in
+            if case .special(let album) = suggestion { album } else { nil }
+        }
+        // A comedian tagged another genre stays when their special is here too.
+        return ComedyFilter.keep(suggestions.map { suggestion -> SearchSuggestion in
+            guard case .comedian(let artist) = suggestion,
+                  let comedian = ComedyFilter.comedians([artist], specials: specials).first
+            else { return suggestion }
+            return .comedian(comedian)
+        })
     }
 
     /// Search as you type. A half-typed name ("mark nor") ranks musicians
@@ -53,9 +62,10 @@ actor MusicKitCatalog: CatalogProviding {
             request.limit = 25
             let response = try await request.response()
             let bits = try await comedyBits(Array(response.songs))
+            let albums = response.albums.map(ComedyAlbum.init)
             return SearchResults(
-                comedians: ComedyFilter.keep(response.artists.map(ComedyArtist.init)),
-                specials: ComedyFilter.keep(response.albums.map(ComedyAlbum.init)),
+                comedians: ComedyFilter.comedians(response.artists.map(ComedyArtist.init), specials: albums),
+                specials: ComedyFilter.keep(albums),
                 bits: bits
             )
         }
@@ -94,17 +104,17 @@ actor MusicKitCatalog: CatalogProviding {
             var request = MusicCatalogResourceRequest<Artist>(matching: \.id, equalTo: MusicItemID(id))
             request.properties = [.albums, .topSongs, .similarArtists, .latestRelease, .featuredAlbums]
             guard let artist = try await request.response().items.first else { throw CatalogError.notFound }
-            guard ComedyFilter.isComedy(artist.genreNames) else { throw CatalogError.notComedy }
-
             let specials = ComedyFilter.keep((artist.albums ?? []).map(ComedyAlbum.init))
                 .sorted { ($0.releaseDate ?? .distantPast) > ($1.releaseDate ?? .distantPast) }
+            guard let comedian = ComedyFilter.comedian(ComedyArtist(artist), specials: specials) else { throw CatalogError.notComedy }
+
             let latest = artist.latestRelease.map(ComedyAlbum.init).flatMap { ComedyFilter.isComedy($0.genreNames) ? $0 : nil }
             let featured = latest
                 ?? ComedyFilter.keep((artist.featuredAlbums ?? []).map(ComedyAlbum.init)).first
                 ?? specials.first
             let topBits = try await comedyBits(Array((artist.topSongs ?? []).prefix(10)))
             return ArtistDetail(
-                artist: ComedyArtist(artist),
+                artist: comedian,
                 featured: featured,
                 specials: specials,
                 topBits: topBits,
@@ -113,12 +123,15 @@ actor MusicKitCatalog: CatalogProviding {
         }
     }
 
+    /// A comedian on their own: tagged Comedy, or else with a comedy
+    /// special in their discography.
     func comedian(id: String) async throws -> ComedyArtist {
         try await cached("comedian:\(id)") {
             let request = MusicCatalogResourceRequest<Artist>(matching: \.id, equalTo: MusicItemID(id))
             guard let artist = try await request.response().items.first else { throw CatalogError.notFound }
-            let comedian = ComedyArtist(artist)
-            guard ComedyFilter.isComedy(comedian.genreNames) else { throw CatalogError.notComedy }
+            let candidate = ComedyArtist(artist)
+            let specials = ComedyFilter.isComedy(candidate.genreNames) ? [] : try await discography(of: id)
+            guard let comedian = ComedyFilter.comedian(candidate, specials: specials) else { throw CatalogError.notComedy }
             return comedian
         }
     }

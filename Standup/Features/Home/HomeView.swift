@@ -147,6 +147,7 @@ struct HomeView: View {
                 }
                 .buttonStyle(.plain)
                 .libraryContextMenu(.special(album))
+                .accessibilityIdentifier("\(id).\(album.id)")
             }
         }
         .accessibilityElement(children: .contain)

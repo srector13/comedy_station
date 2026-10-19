@@ -4,7 +4,8 @@ import Foundation
 /// `ComedyFilter` as the live catalog.
 struct MockCatalog: CatalogProviding {
     func suggestions(for term: String) async throws -> [SearchSuggestion] {
-        let hits = matchingArtists(term).map(SearchSuggestion.comedian) + matchingAlbums(term).map(SearchSuggestion.special)
+        let albums = matchingAlbums(term)
+        let hits = ComedyFilter.comedians(matchingArtists(term), specials: albums).map(SearchSuggestion.comedian) + albums.map(SearchSuggestion.special)
         return Array(ComedyFilter.keep(hits).prefix(6))
     }
 
@@ -12,9 +13,10 @@ struct MockCatalog: CatalogProviding {
         let bits = MockData.tracks.values.joined().filter {
             $0.title.localizedCaseInsensitiveContains(term) || $0.artistName.localizedCaseInsensitiveContains(term)
         }
+        let albums = matchingAlbums(term)
         return SearchResults(
-            comedians: ComedyFilter.keep(matchingArtists(term)),
-            specials: ComedyFilter.keep(matchingAlbums(term)),
+            comedians: ComedyFilter.comedians(matchingArtists(term), specials: albums),
+            specials: ComedyFilter.keep(albums),
             bits: Array(ComedyFilter.keep(bits.sorted { $0.id < $1.id }).prefix(12))
         )
     }
@@ -31,10 +33,10 @@ struct MockCatalog: CatalogProviding {
     }
 
     func artist(id: String) async throws -> ArtistDetail {
-        guard let artist = MockData.artist(id: id) else { throw CatalogError.notFound }
-        guard ComedyFilter.isComedy(artist.genreNames) else { throw CatalogError.notComedy }
+        guard let found = MockData.artist(id: id) else { throw CatalogError.notFound }
         let specials = ComedyFilter.keep(MockData.albums.filter { $0.artistID == id })
             .sorted { ($0.releaseDate ?? .distantPast) > ($1.releaseDate ?? .distantPast) }
+        guard let artist = ComedyFilter.comedian(found, specials: specials) else { throw CatalogError.notComedy }
         // A few bits from each special, plus the pop-compilation decoy for Maya.
         var candidates: [ComedyTrack] = []
         for album in MockData.albums where album.artistID == id {
@@ -52,8 +54,8 @@ struct MockCatalog: CatalogProviding {
 
     func comedian(id: String) async throws -> ComedyArtist {
         guard let artist = MockData.artist(id: id) else { throw CatalogError.notFound }
-        guard ComedyFilter.isComedy(artist.genreNames) else { throw CatalogError.notComedy }
-        return artist
+        guard let comedian = ComedyFilter.comedian(artist, specials: MockData.albums.filter { $0.artistID == id }) else { throw CatalogError.notComedy }
+        return comedian
     }
 
     func charts() async throws -> ComedyCharts {
@@ -80,7 +82,7 @@ struct MockCatalog: CatalogProviding {
     }
 
     func trendingComedians() async throws -> [ComedyArtist] {
-        ComedyFilter.keep(MockData.comedians)
+        ComedyFilter.comedians(MockData.comedians, specials: MockData.albums)
     }
 
     func playlist(id: String) async throws -> PlaylistDetail {

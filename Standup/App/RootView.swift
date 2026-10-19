@@ -12,6 +12,7 @@ struct RootView: View {
     @Environment(\.catalog) private var catalog
     @Environment(\.scenePhase) private var scenePhase
     @Environment(PlayerService.self) private var player
+    @Environment(LibraryStore.self) private var library
 
     var body: some View {
         ZStack {
@@ -30,6 +31,12 @@ struct RootView: View {
         }
         .animation(.default, value: gate.state)
         .task { await gate.refresh() }
+        .task(id: gate.state == .ready) {
+            // Once the catalog answers: comedians earlier versions left out.
+            if gate.state == .ready {
+                await library.addMissingComediansOnce()
+            }
+        }
         .onChange(of: scenePhase) { _, phase in
             // Back from Settings (or anywhere): the answer may have changed.
             if phase == .active {

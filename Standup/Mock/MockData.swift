@@ -3,7 +3,8 @@ import Foundation
 /// Fictional comedians and specials for previews, tests and CI screenshots.
 /// The decoys (a pop artist, a soundtrack titled "Comedy of Errors", a pop
 /// compilation carrying a comedy bit) aren't comedy by genre, so the comedy
-/// filter must drop them everywhere.
+/// filter must drop them everywhere. Rick Alvarez is filed under books, but
+/// his comedy special makes him a comedian.
 enum MockData {
     static let comedians: [ComedyArtist] = [
         artist("maya", "Maya Okafor", ["Comedy", "Music"]),
@@ -12,6 +13,9 @@ enum MockData {
         artist("rosa", "Rosa Delgado", ["Comedy"]),
         artist("sam", "Sam Whitlock", ["comedy"]),
         artist("jenna", "Jenna Albright", ["Comedy"]),
+        // Filed under books, as Apple files some comedians: their comedy
+        // special makes them one.
+        artist("rick", "Rick Alvarez", ["Biographies & Memoirs"]),
         // Decoys.
         artist("nova", "Nova Rae", ["Pop", "Music"]),
         artist("pops", "City Pops Orchestra", ["Soundtrack"]),
@@ -27,6 +31,7 @@ enum MockData {
         album("momsaid", "Mom Said It Was Fine", "rosa", "2020-10-09", 9),
         album("overthinking", "Overthinking It", "sam", "2024-04-26", 11),
         album("customer", "Customer Service Voice", "jenna", "2023-01-20", 9),
+        album("memoir", "Mostly True Stories", "rick", "2022-09-16", 8),
         // Decoys.
         album("arena", "Live at the Arena", "nova", "2024-07-12", 14, genres: ["Pop", "Music"]),
         album("errors", "Comedy of Errors (Original Score)", "pops", "2019-05-03", 16, genres: ["Soundtrack"]),

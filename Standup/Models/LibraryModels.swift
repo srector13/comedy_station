@@ -19,8 +19,8 @@ final class SavedComedian {
     var artworkRGB: Int?
     var genreNames: [String] = []
     var dateAdded: Date = Date.now
-    /// Added because one of their specials was, not on its own; leaves
-    /// again with the last such special.
+    /// Added because one of their specials or bits was, not on its own;
+    /// leaves again with the last of those.
     var isAutomatic: Bool = false
 
     init(_ artist: ComedyArtist, dateAdded: Date = .now, isAutomatic: Bool = false) {
@@ -87,6 +87,9 @@ final class SavedTrack {
     var title: String = ""
     /// The comedian.
     var artistName: String = ""
+    /// The comedian's ID, from the bit's special, so the comedian it
+    /// brought along leaves with it.
+    var artistID: String?
     var albumID: String?
     var albumTitle: String?
     var duration: TimeInterval?
@@ -100,11 +103,12 @@ final class SavedTrack {
     /// the special.
     var isAutomatic: Bool = false
 
-    init(_ track: ComedyTrack, dateAdded: Date = .now, isAutomatic: Bool = false) {
+    init(_ track: ComedyTrack, artistID: String? = nil, dateAdded: Date = .now, isAutomatic: Bool = false) {
         self.isAutomatic = isAutomatic
         songID = track.id
         title = track.title
         artistName = track.artistName
+        self.artistID = artistID
         albumID = track.albumID
         albumTitle = track.albumTitle
         duration = track.duration
