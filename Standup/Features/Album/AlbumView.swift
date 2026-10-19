@@ -8,6 +8,7 @@ struct AlbumView: View {
 
     @Environment(\.catalog) private var catalog
     @Environment(\.play) private var play
+    @Environment(PlayerService.self) private var player
     @State private var detail: LoadState<AlbumDetail> = .loading
     @State private var showsNotes = false
     @State private var showsTitle = false
@@ -132,10 +133,12 @@ struct AlbumView: View {
             .foregroundStyle(.secondary)
 
             HStack(spacing: 12) {
+                // A special left partway picks up where it stopped.
+                let resumes = player.resumePoint(for: shown.id) != nil
                 Button {
-                    play(PlayRequest(item: .album(shown)))
+                    play(PlayRequest(item: .album(shown), resume: true))
                 } label: {
-                    Label("Play", systemImage: "play.fill")
+                    Label(resumes ? "Resume" : "Play", systemImage: "play.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .accessibilityIdentifier("album.play")

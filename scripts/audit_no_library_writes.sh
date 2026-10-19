@@ -4,8 +4,8 @@
 #   1. Never write to the user's Apple Music library: no MusicLibrary,
 #      LibraryPlaylist, MediaPlayer library or player APIs.
 #   2. Play only with ApplicationMusicPlayer (never SystemMusicPlayer), and
-#      only from Services/PlayerService.swift, which must set
-#      affectsListeningHistory = false on its queues.
+#      only from Services/MusicKitPlaybackEngine.swift, which builds its one
+#      queue in makeQueue with affectsListeningHistory = false.
 #
 # Comment lines are ignored, so docs may name the APIs they forbid.
 # Runs in CI (ios-gate.yml) and before every commit:
@@ -15,7 +15,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 SRC="Standup"
-PLAYER="Standup/Services/PlayerService.swift"
+PLAYER="Standup/Services/MusicKitPlaybackEngine.swift"
 fail=0
 
 # Swift lines matching $1 (extended regex), minus comment lines.
@@ -57,6 +57,21 @@ if [ -f "$PLAYER" ]; then
     echo "::error::${PLAYER} sets affectsListeningHistory = true (rule 2)"
     fail=1
   fi
+  # One queue constructor, in makeQueue, and every queue assignment uses it.
+  constructors="$(code_hits 'ApplicationMusicPlayer\.Queue\(' | grep -c . || true)"
+  if [ "$constructors" -ne 1 ]; then
+    echo "::error::Expected exactly one ApplicationMusicPlayer.Queue( (in makeQueue), found ${constructors} (rule 2)"
+    fail=1
+  fi
+  stray="$(code_hits '\.queue[[:space:]]*=[^=]' | grep -v 'makeQueue(' || true)"
+  if [ -n "$stray" ]; then
+    echo "::error::Assign player queues only from makeQueue(...) (rule 2)"
+    echo "$stray"
+    fail=1
+  fi
+elif [ -n "$(code_hits 'ApplicationMusicPlayer')" ]; then
+  echo "::error::${PLAYER} is missing (rule 2)"
+  fail=1
 fi
 
 if [ "$fail" -ne 0 ]; then

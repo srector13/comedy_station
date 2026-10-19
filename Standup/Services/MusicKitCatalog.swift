@@ -80,6 +80,16 @@ actor MusicKitCatalog: CatalogProviding {
         }
     }
 
+    func comedian(id: String) async throws -> ComedyArtist {
+        try await cached("comedian:\(id)") {
+            let request = MusicCatalogResourceRequest<Artist>(matching: \.id, equalTo: MusicItemID(id))
+            guard let artist = try await request.response().items.first else { throw CatalogError.notFound }
+            let comedian = ComedyArtist(artist)
+            guard ComedyFilter.isComedy(comedian.genreNames) else { throw CatalogError.notComedy }
+            return comedian
+        }
+    }
+
     // MARK: Helpers
 
     /// The songs that are on a comedy album. One batched request loads every

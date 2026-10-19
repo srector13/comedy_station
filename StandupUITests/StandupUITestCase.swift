@@ -16,6 +16,8 @@ class StandupUITestCase: XCTestCase {
 
     @MainActor
     func launch(access: String = "ready", tab: String? = nil, extra: [String] = [], dark: Bool) -> XCUIApplication {
+        // A test that failed in landscape mustn't leave the next one there.
+        XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
         app.launchArguments = [
             "-StandupMock", "YES",

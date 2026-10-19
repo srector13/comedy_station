@@ -169,3 +169,18 @@ enum SearchSuggestion: Identifiable, Hashable, Sendable, GenreTagged {
         }
     }
 }
+
+/// Anything the App Library can hold.
+enum LibraryItem: Hashable, Sendable {
+    case comedian(ComedyArtist)
+    case special(ComedyAlbum)
+    case bit(ComedyTrack)
+
+    var id: String {
+        switch self {
+        case .comedian(let artist): artist.id
+        case .special(let album): album.id
+        case .bit(let track): track.id
+        }
+    }
+}

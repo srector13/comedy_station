@@ -12,6 +12,8 @@ enum AppTab: String, Hashable, CaseIterable, Sendable {
 struct MainTabView: View {
     @State private var selection: AppTab
     @State private var search: SearchModel
+    @Namespace private var nowPlayingNamespace
+    @Environment(PlayerService.self) private var player
     private let initialRoute: Route?
 
     init(catalog: any CatalogProviding, initialTab: AppTab = .home, initialQuery: String = "", initialRoute: Route? = nil) {
@@ -21,6 +23,7 @@ struct MainTabView: View {
     }
 
     var body: some View {
+        @Bindable var player = player
         TabView(selection: $selection) {
             Tab("Home", systemImage: "house.fill", value: AppTab.home) {
                 HomeView(initialPath: initialRoute.map { [$0] } ?? [])
@@ -38,7 +41,16 @@ struct MainTabView: View {
         .tabViewStyle(.sidebarAdaptable)
         .tabBarMinimizeBehavior(.onScrollDown)
         .tabViewBottomAccessory {
-            MiniPlayerView()
+            MiniPlayerView(namespace: nowPlayingNamespace)
+        }
+        .sheet(isPresented: $player.showsNowPlaying) {
+            NowPlayingView()
+                .navigationTransition(.zoom(sourceID: "nowPlaying", in: nowPlayingNamespace))
+        }
+        .alert("Can't Play", isPresented: $player.showsError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(player.errorMessage ?? "")
         }
         .searchable(text: $search.query, prompt: "Comedians, Specials, and Bits")
         .searchSuggestions {

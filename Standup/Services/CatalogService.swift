@@ -7,6 +7,8 @@ protocol CatalogProviding: Sendable {
     func search(_ term: String) async throws -> SearchResults
     func album(id: String) async throws -> AlbumDetail
     func artist(id: String) async throws -> ArtistDetail
+    /// Just the comedian (name, artwork, genres), without their page.
+    func comedian(id: String) async throws -> ComedyArtist
 }
 
 enum CatalogError: LocalizedError, Equatable {

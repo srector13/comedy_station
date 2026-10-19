@@ -11,6 +11,7 @@ struct RootView: View {
     @Environment(AuthGate.self) private var gate
     @Environment(\.catalog) private var catalog
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(PlayerService.self) private var player
 
     var body: some View {
         ZStack {
@@ -33,6 +34,8 @@ struct RootView: View {
             // Back from Settings (or anywhere): the answer may have changed.
             if phase == .active {
                 Task { await gate.refresh() }
+            } else if phase == .background {
+                player.saveProgress()
             }
         }
     }

@@ -50,6 +50,12 @@ struct MockCatalog: CatalogProviding {
         )
     }
 
+    func comedian(id: String) async throws -> ComedyArtist {
+        guard let artist = MockData.artist(id: id) else { throw CatalogError.notFound }
+        guard ComedyFilter.isComedy(artist.genreNames) else { throw CatalogError.notComedy }
+        return artist
+    }
+
     /// A `-StandupRoute` launch value ("album:<id>" or "artist:<id>") as a
     /// route into mock data.
     static func route(for value: String) -> Route? {

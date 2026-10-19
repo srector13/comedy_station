@@ -11,17 +11,40 @@ final class AppEnvironment {
     let authGate: AuthGate
     let catalog: any CatalogProviding
     let library: LibraryStore
+    let player: PlayerService
 
     init(options: LaunchOptions) {
         self.options = options
+        let engine: any PlaybackEngine
         if options.useMockData {
             authGate = AuthGate(access: MockMusicAccess(scenario: options.accessScenario))
             catalog = MockCatalog()
-            library = .inMemory(seeded: options.seedLibrary)
+            library = .inMemory(seeded: options.seedLibrary, catalog: catalog)
+            engine = MockPlaybackEngine()
         } else {
             authGate = AuthGate(access: LiveMusicAccess())
             catalog = MusicKitCatalog()
-            library = .onDisk()
+            library = .onDisk(catalog: catalog)
+            engine = MusicKitPlaybackEngine()
+        }
+        player = PlayerService(engine: engine, catalog: catalog, progressStore: library)
+        restoreMockSession()
+    }
+
+    /// `-StandupNowPlaying album:<id>:<bit index>:<seconds>` loads a paused
+    /// special (mock only), and `-StandupShowNowPlaying YES` opens Now
+    /// Playing over it, for screenshots.
+    private func restoreMockSession() {
+        guard options.useMockData, let value = options.nowPlaying else { return }
+        let parts = value.split(separator: ":").map(String.init)
+        guard parts.count == 4, parts[0] == "album", let album = MockData.album(id: parts[1]),
+              let index = Int(parts[2]), let seconds = TimeInterval(parts[3])
+        else { return }
+        let service = self.player
+        let opens = options.showNowPlaying
+        Task {
+            await service.play(album: album, startIndex: index, position: seconds, autoplay: false)
+            service.showsNowPlaying = opens
         }
     }
 

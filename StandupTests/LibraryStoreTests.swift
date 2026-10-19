@@ -95,4 +95,86 @@ struct LibraryStoreTests {
         store.dismissFeedback(store.feedback!.id)
         #expect(store.feedback == nil)
     }
+
+    // MARK: A special brings its comedian
+
+    private func comedians(in store: LibraryStore) throws -> [SavedComedian] {
+        try store.container.mainContext.fetch(FetchDescriptor<SavedComedian>())
+    }
+
+    @Test func addingASpecialAddsItsComedian() async throws {
+        let store = LibraryStore.inMemory(catalog: MockCatalog())
+        let parking = try #require(MockData.album(id: "mock-al-parking"))
+        store.add(.special(parking))
+        await store.comedianLookup?.value
+        #expect(store.comedianIDs == ["mock-ar-dev"])
+        #expect(try comedians(in: store).first?.isAutomatic == true)
+    }
+
+    /// Search results don't carry the artist; the catalog finds it.
+    @Test func aSpecialFromSearchStillFindsItsComedian() async throws {
+        let store = LibraryStore.inMemory(catalog: MockCatalog())
+        var fromSearch = try #require(MockData.album(id: "mock-al-parking"))
+        fromSearch.artistID = nil
+        store.add(.special(fromSearch))
+        await store.comedianLookup?.value
+        #expect(store.comedianIDs == ["mock-ar-dev"])
+        let saved = try store.container.mainContext.fetch(FetchDescriptor<SavedAlbum>()).first
+        #expect(saved?.artistID == "mock-ar-dev")
+    }
+
+    @Test func removingTheSpecialTakesAnAddedAlongComedianWithIt() async throws {
+        let store = LibraryStore.inMemory(catalog: MockCatalog())
+        let parking = try #require(MockData.album(id: "mock-al-parking"))
+        store.add(.special(parking))
+        await store.comedianLookup?.value
+        store.remove(.special(parking))
+        #expect(store.comedianIDs.isEmpty)
+        #expect(try comedians(in: store).isEmpty)
+    }
+
+    @Test func aComedianAddedOnPurposeStays() async throws {
+        let store = LibraryStore.inMemory(catalog: MockCatalog())
+        let parking = try #require(MockData.album(id: "mock-al-parking"))
+        store.add(.comedian(try #require(MockData.artist(id: "mock-ar-dev"))))
+        store.add(.special(parking))
+        await store.comedianLookup?.value
+        #expect(try comedians(in: store).first?.isAutomatic == false)
+        store.remove(.special(parking))
+        #expect(store.comedianIDs == ["mock-ar-dev"])
+    }
+
+    @Test func theComedianStaysUntilTheirLastSpecialGoes() async throws {
+        let store = LibraryStore.inMemory(catalog: MockCatalog())
+        let lower = try #require(MockData.album(id: "mock-al-lower"))
+        let groupChat = try #require(MockData.album(id: "mock-al-groupchat"))
+        store.add(.special(lower))
+        await store.comedianLookup?.value
+        store.add(.special(groupChat))
+        await store.comedianLookup?.value
+        store.remove(.special(lower))
+        #expect(store.comedianIDs == ["mock-ar-maya"])
+        store.remove(.special(groupChat))
+        #expect(store.comedianIDs.isEmpty)
+    }
+
+    // MARK: Playback progress
+
+    @Test func progressRoundTripsAndUpdatesInPlace() throws {
+        let store = LibraryStore.inMemory()
+        var snapshot = ProgressSnapshot(
+            itemID: special.id, isAlbum: true, lastTrackIndex: 2, lastPosition: 42,
+            lastPlayed: Date(timeIntervalSince1970: 1_800_000_000), finished: false, fractionComplete: 0.3,
+            title: special.title, artistName: special.artistName, artwork: special.artwork, trackCount: 11
+        )
+        store.saveProgress(snapshot)
+        #expect(store.progress(for: special.id) == snapshot)
+        snapshot.lastTrackIndex = 5
+        snapshot.lastPosition = 7
+        store.saveProgress(snapshot)
+        #expect(store.progress(for: special.id) == snapshot)
+        #expect(try count(PlaybackProgress.self, in: store) == 1)
+        #expect(store.progress(for: "nothing") == nil)
+    }
 }
+

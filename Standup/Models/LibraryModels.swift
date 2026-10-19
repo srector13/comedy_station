@@ -14,8 +14,12 @@ final class SavedComedian {
     var artworkRGB: Int?
     var genreNames: [String]
     var dateAdded: Date
+    /// Added because one of their specials was, not on its own; leaves
+    /// again with the last such special.
+    var isAutomatic: Bool = false
 
-    init(_ artist: ComedyArtist, dateAdded: Date = .now) {
+    init(_ artist: ComedyArtist, dateAdded: Date = .now, isAutomatic: Bool = false) {
+        self.isAutomatic = isAutomatic
         artistID = artist.id
         name = artist.name
         artworkTemplate = artist.artwork.template
@@ -151,20 +155,5 @@ final class PlaybackProgress {
         self.artworkTemplate = artworkTemplate
         self.artworkRGB = artworkRGB
         self.trackCount = trackCount
-    }
-}
-
-/// Anything the App Library can hold.
-enum LibraryItem: Hashable, Sendable {
-    case comedian(ComedyArtist)
-    case special(ComedyAlbum)
-    case bit(ComedyTrack)
-
-    var id: String {
-        switch self {
-        case .comedian(let artist): artist.id
-        case .special(let album): album.id
-        case .bit(let track): track.id
-        }
     }
 }

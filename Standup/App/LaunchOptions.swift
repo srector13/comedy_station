@@ -11,6 +11,8 @@ import SwiftUI
 ///     -StandupRoute album:<id>          open a page on the first tab (mock)
 ///     -StandupLibrary seeded            start with a filled App Library (mock)
 ///     -StandupFeedbackSeconds 6         keep "Added to Library" up longer
+///     -StandupNowPlaying album:<id>:3:125  a paused special, bit 4 at 2:05 (mock)
+///     -StandupShowNowPlaying YES        open Now Playing over it (mock)
 ///
 /// Arguments of the form `-Key value` land in UserDefaults' argument domain.
 struct LaunchOptions: Equatable {
@@ -26,6 +28,8 @@ struct LaunchOptions: Equatable {
     var route: String?
     var seedLibrary = false
     var feedbackSeconds: Double?
+    var nowPlaying: String?
+    var showNowPlaying = false
 
     /// Options from `value(key)`, the launch argument for each key.
     init(value: (String) -> String?) {
@@ -41,6 +45,8 @@ struct LaunchOptions: Equatable {
         route = value("StandupRoute").flatMap { $0.isEmpty ? nil : $0 }
         seedLibrary = value("StandupLibrary")?.lowercased() == "seeded"
         feedbackSeconds = value("StandupFeedbackSeconds").flatMap(Double.init)
+        nowPlaying = value("StandupNowPlaying").flatMap { $0.isEmpty ? nil : $0 }
+        showNowPlaying = ["yes", "true", "1"].contains(value("StandupShowNowPlaying")?.lowercased() ?? "")
     }
 
     init() {
