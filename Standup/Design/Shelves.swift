@@ -21,6 +21,14 @@ struct Shelf<Content: View>: View {
     }
 }
 
+extension DynamicTypeSize {
+    /// A shelf card's width: wider at accessibility sizes so a title fits in
+    /// a few lines.
+    func cardWidth(_ base: CGFloat) -> CGFloat {
+        isAccessibilitySize ? max(base, 280) : base
+    }
+}
+
 /// How far through a special: a ring on its artwork, as on Continue
 /// Listening.
 struct ProgressRing: View {
@@ -49,10 +57,13 @@ struct ContinueListeningCard: View {
 
     @Environment(\.dynamicTypeSize) private var typeSize
 
+    /// Wider at accessibility text sizes, so titles have room.
+    private var shownWidth: CGFloat { typeSize.cardWidth(width) }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             ArtworkView(progress.artwork, placeholder: .poster(progress.title), pixels: 500)
-                .frame(width: width, height: width)
+                .frame(width: shownWidth, height: shownWidth)
                 .clipShape(.rect(cornerRadius: 8))
                 .overlay(alignment: .bottomTrailing) {
                     ProgressRing(fraction: progress.fractionComplete)
@@ -69,7 +80,7 @@ struct ContinueListeningCard: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
         }
-        .frame(width: width, alignment: .leading)
+        .frame(width: shownWidth, alignment: .leading)
         .accessibilityElement(children: .combine)
         .accessibilityHint("Resumes the special")
     }
@@ -152,10 +163,13 @@ struct PlaylistCard: View {
 
     @Environment(\.dynamicTypeSize) private var typeSize
 
+    /// Wider at accessibility text sizes, so titles have room.
+    private var shownWidth: CGFloat { typeSize.cardWidth(width) }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             ArtworkView(playlist.artwork, placeholder: .poster(playlist.name), pixels: 500)
-                .frame(width: width, height: width)
+                .frame(width: shownWidth, height: shownWidth)
                 .clipShape(.rect(cornerRadius: 8))
             Text(playlist.name)
                 .font(.subheadline)
@@ -167,7 +181,7 @@ struct PlaylistCard: View {
                     .lineLimit(1)
             }
         }
-        .frame(width: width, alignment: .leading)
+        .frame(width: shownWidth, alignment: .leading)
         .accessibilityElement(children: .combine)
     }
 }

@@ -35,7 +35,8 @@ struct AccessGateView: View {
                         if let detail = content.detail {
                             Text(detail)
                                 .font(.footnote)
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
                         }
                     }
                     .multilineTextAlignment(.center)

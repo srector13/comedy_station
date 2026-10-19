@@ -71,9 +71,14 @@ final class HomeBrowseUITests: StandupUITestCase {
         app.terminate()
 
         app = launch(tab: "home", extra: ["-StandupRoute", "album:mock-al-lower"] + ax, dark: false)
-        require(element("album.track.0", in: app), in: app, timeout: 15, "album didn't load")
-        app.swipeUp()
+        require(element("album.play", in: app), in: app, timeout: 15, "album didn't load")
         snap("61-album-ax", dark: false)
+        // At these sizes the header fills the screen; the bits are below it.
+        for _ in 0..<4 where !element("album.track.0", in: app).exists {
+            app.swipeUp()
+        }
+        require(element("album.track.0", in: app), in: app, timeout: 5, "no bits below the header")
+        snap("61b-album-bits-ax", dark: false)
         app.terminate()
 
         app = launch(tab: "home", extra: ["-StandupNowPlaying", "album:mock-al-lower:3:125", "-StandupShowNowPlaying", "YES"] + ax, dark: false)

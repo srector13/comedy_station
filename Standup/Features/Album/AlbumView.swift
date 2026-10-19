@@ -132,7 +132,7 @@ struct AlbumView: View {
             .font(.footnote)
             .foregroundStyle(.secondary)
 
-            HStack(spacing: 12) {
+            PlayButtonsLayout {
                 // A special left partway picks up where it stopped.
                 let resumes = player.resumePoint(for: shown.id) != nil
                 Button {

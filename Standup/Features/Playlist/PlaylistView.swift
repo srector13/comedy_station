@@ -81,7 +81,7 @@ struct PlaylistView: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
-            HStack(spacing: 12) {
+            PlayButtonsLayout {
                 Button {
                     play(PlayRequest(item: .playlist(playlist)))
                 } label: {

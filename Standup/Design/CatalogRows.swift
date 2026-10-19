@@ -100,10 +100,13 @@ struct SpecialCard: View {
     var width: CGFloat? = 160
     @Environment(\.dynamicTypeSize) private var typeSize
 
+    /// Wider at accessibility text sizes; nil (fill the cell) stays nil.
+    private var shownWidth: CGFloat? { width.map { typeSize.cardWidth($0) } }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             ArtworkView(album.artwork, placeholder: .poster(album.title), pixels: 500)
-                .frame(width: width, height: width)
+                .frame(width: shownWidth, height: shownWidth)
                 .clipShape(.rect(cornerRadius: 8))
             Text(album.title)
                 .font(.subheadline)
@@ -115,7 +118,7 @@ struct SpecialCard: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .frame(width: width, alignment: .leading)
+        .frame(width: shownWidth, alignment: .leading)
         .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
         .accessibilityElement(children: .combine)
     }
@@ -161,5 +164,20 @@ struct ShelfHeader: View {
             .font(.title2.bold())
             .accessibilityAddTraits(.isHeader)
             .padding(.horizontal, 20)
+    }
+}
+
+/// Play and Shuffle side by side, stacked at accessibility text sizes so
+/// neither label is cut off.
+struct PlayButtonsLayout<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    var body: some View {
+        let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: 12)) : AnyLayout(HStackLayout(spacing: 12))
+        layout {
+            content
+        }
     }
 }
