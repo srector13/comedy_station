@@ -7,6 +7,7 @@ struct BrowseView: View {
 
     @Environment(\.catalog) private var catalog
     @Environment(\.play) private var play
+    @Environment(SpecialsSettings.self) private var specials
 
     var body: some View {
         NavigationStack {
@@ -34,8 +35,10 @@ struct BrowseView: View {
                 .padding(.vertical, 12)
             }
             .navigationTitle("Browse")
+            .settingsButton()
             .comedyDestinations()
-            .task { await load() }
+            // Again when the TMDB key changes in Settings.
+            .task(id: specials.revision) { await load() }
             .refreshable { await load() }
         }
     }

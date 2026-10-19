@@ -12,6 +12,7 @@ final class AppEnvironment {
     let catalog: any CatalogProviding
     let library: LibraryStore
     let player: PlayerService
+    let specials: SpecialsSettings
 
     init(options: LaunchOptions) {
         self.options = options
@@ -21,11 +22,13 @@ final class AppEnvironment {
             catalog = MockCatalog()
             library = .inMemory(seeded: options.seedLibrary, catalog: catalog)
             engine = MockPlaybackEngine()
+            specials = SpecialsSettings(store: MemoryKeyStore(), check: { _ in })
         } else {
             authGate = AuthGate(access: LiveMusicAccess())
-            catalog = MusicKitCatalog()
+            catalog = MusicKitCatalog(tmdbKeys: KeychainKeyStore.tmdb)
             library = .onDisk(catalog: catalog)
             engine = MusicKitPlaybackEngine()
+            specials = SpecialsSettings(store: KeychainKeyStore.tmdb, check: { try await TMDBClient(key: $0).check() })
         }
         player = PlayerService(engine: engine, catalog: catalog, progressStore: library)
         restoreMockSession()

@@ -18,6 +18,7 @@ struct StandupApp: App {
             .modelContainer(environment.library.container)
             .environment(\.libraryFeedbackDuration, environment.options.feedbackSeconds ?? 1.6)
             .environment(environment.player)
+            .environment(environment.specials)
             .environment(\.play, { [player = environment.player] request in
                 Task { await player.handle(request) }
             })

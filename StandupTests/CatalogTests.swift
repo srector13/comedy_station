@@ -153,6 +153,18 @@ struct ResponseCacheTests {
 }
 
 struct ChartsAndPlaylistsTests {
+    @Test func tmdbNewReleasesComeFirstAndPopularIsRanked() throws {
+        let lower = try #require(MockData.album(id: "mock-al-lower"))
+        let parking = try #require(MockData.album(id: "mock-al-parking"))
+        var charts = ComedyCharts(topSpecials: [parking])
+        charts.newReleases = [lower]
+        #expect(charts.newSpecials() == [lower])
+        charts.specialsSource = .popular
+        #expect(charts.specialsTitle == "Popular Specials")
+        #expect(charts.specialRank(2) == 2)
+        #expect(ComedyCharts(newReleases: [lower]).isEmpty == false)
+    }
+
     @Test func searchFilledSectionsAreNotRanked() {
         var charts = ComedyCharts()
         #expect(charts.specialsTitle == "Top Specials")

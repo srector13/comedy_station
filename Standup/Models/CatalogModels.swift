@@ -139,14 +139,18 @@ struct PlaylistDetail: Hashable, Sendable {
 
 /// The Comedy charts (genre 3), filtered.
 struct ComedyCharts: Hashable, Sendable {
-    /// Where a section came from: the Comedy chart (ranked by plays), or,
-    /// when the chart had none, catalog searches for comedy (not ranked).
+    /// Where a section came from: TMDB's most popular stand-up specials,
+    /// Apple's Comedy chart (ranked by plays), or, when neither had any,
+    /// catalog searches for comedy (not ranked).
     enum Source: Hashable, Sendable {
-        case chart, search
+        case popular, chart, search
     }
 
-    /// Most played specials, in chart order.
+    /// Most popular (TMDB) or most played (Apple) specials, in rank order.
     var topSpecials: [ComedyAlbum] = []
+    /// Specials out in the last few months, from TMDB, newest first. Empty
+    /// without a TMDB key.
+    var newReleases: [ComedyAlbum] = []
     /// Most played bits, in chart order.
     var topBits: [ComedyTrack] = []
     var playlists: [ComedyPlaylist] = []
@@ -154,16 +158,20 @@ struct ComedyCharts: Hashable, Sendable {
     var bitsSource = Source.chart
 
     var specialsTitle: String {
-        specialsSource == .chart ? "Top Specials" : "Comedy Specials"
+        switch specialsSource {
+        case .popular: "Popular Specials"
+        case .chart: "Top Specials"
+        case .search: "Comedy Specials"
+        }
     }
 
     var bitsTitle: String {
         bitsSource == .chart ? "Top Bits" : "Comedy Bits"
     }
 
-    /// The rank to show beside the n-th special, only when it is a chart.
+    /// The rank to show beside the n-th special, only when it is ranked.
     func specialRank(_ position: Int) -> Int? {
-        specialsSource == .chart ? position : nil
+        specialsSource == .search ? nil : position
     }
 
     /// The rank to show beside the n-th bit, only when it is a chart.
@@ -171,16 +179,17 @@ struct ComedyCharts: Hashable, Sendable {
         bitsSource == .chart ? position : nil
     }
 
-    /// Charted specials from the last two years, newest first: MusicKit
-    /// has no new-releases-by-genre request.
+    /// TMDB's new releases, or else charted specials from the last two
+    /// years, newest first: MusicKit has no new-releases-by-genre request.
     func newSpecials(now: Date = .now) -> [ComedyAlbum] {
+        guard newReleases.isEmpty else { return newReleases }
         let cutoff = now.addingTimeInterval(-2 * 365 * 86_400)
         return topSpecials
             .filter { ($0.releaseDate ?? .distantPast) >= cutoff }
             .sorted { ($0.releaseDate ?? .distantPast) > ($1.releaseDate ?? .distantPast) }
     }
 
-    var isEmpty: Bool { topSpecials.isEmpty && topBits.isEmpty && playlists.isEmpty }
+    var isEmpty: Bool { topSpecials.isEmpty && topBits.isEmpty && playlists.isEmpty && newReleases.isEmpty }
 }
 
 struct SearchResults: Hashable, Sendable {

@@ -11,6 +11,7 @@ struct HomeView: View {
     @Environment(\.catalog) private var catalog
     @Environment(\.play) private var play
     @Environment(LibraryStore.self) private var library
+    @Environment(SpecialsSettings.self) private var specials
 
     @Query(filter: #Predicate<PlaybackProgress> { $0.isAlbum && !$0.finished }, sort: \PlaybackProgress.lastPlayed, order: .reverse)
     private var inProgress: [PlaybackProgress]
@@ -51,8 +52,10 @@ struct HomeView: View {
                 .padding(.vertical, 12)
             }
             .navigationTitle("Home")
+            .settingsButton()
             .comedyDestinations()
-            .task { await loadCharts() }
+            // Again when the TMDB key changes in Settings.
+            .task(id: specials.revision) { await loadCharts() }
             .refreshable { await loadCharts() }
         }
     }

@@ -6,6 +6,12 @@ import MusicKit
 /// in-memory cache so going back and forth between pages doesn't refetch.
 actor MusicKitCatalog: CatalogProviding {
     private var cache = ResponseCache(lifetime: 10 * 60)
+    /// The person's TMDB key, from Settings, for New and Popular Specials.
+    private let tmdbKeys: any KeyStoring
+
+    init(tmdbKeys: any KeyStoring = KeychainKeyStore.tmdb) {
+        self.tmdbKeys = tmdbKeys
+    }
 
     func suggestions(for term: String) async throws -> [SearchSuggestion] {
         let suggestions: [SearchSuggestion] = try await suggestionsResponse(for: term).topResults.compactMap { result in
@@ -115,11 +121,13 @@ actor MusicKitCatalog: CatalogProviding {
         }
     }
 
-    /// The Comedy chart for Home and Browse. Where the chart has no comedy
-    /// specials or bits (it can come back empty, or with nothing tagged
-    /// Comedy), searches for comedy fill that section instead.
+    /// Home and Browse. With a TMDB key, new and popular specials come from
+    /// TMDB, as their Apple Music versions. Bits and playlists come from
+    /// Apple's Comedy chart, which also fills in for TMDB. Where neither has
+    /// any comedy, searches for comedy fill that section instead.
     func charts() async throws -> ComedyCharts {
-        try await cached("charts") {
+        let tmdbKey = tmdbKeys.load()
+        return try await cached("charts:\(tmdbKey ?? "")") {
             var charts = ComedyCharts()
             var notes: [String] = []
             do {
@@ -146,6 +154,15 @@ actor MusicKitCatalog: CatalogProviding {
                 if let setup = MusicKitSetupError(error) { throw setup }
                 notes.append("The Comedy chart didn't load (\(error.localizedDescription)).")
             }
+            if let tmdbKey {
+                let external = await tmdbSpecials(TMDBClient(key: tmdbKey))
+                charts.newReleases = external.new
+                // A handful at least, or Apple's chart reads better.
+                if external.popular.count >= 4 {
+                    charts.topSpecials = external.popular
+                    charts.specialsSource = .popular
+                }
+            }
             if charts.topSpecials.isEmpty || charts.topBits.isEmpty {
                 let found = await searchedComedy()
                 if charts.topSpecials.isEmpty {
@@ -162,6 +179,58 @@ actor MusicKitCatalog: CatalogProviding {
             }
             return charts
         }
+    }
+
+    // MARK: TMDB
+
+    /// TMDB's new (last four months) and popular (last three years)
+    /// stand-up specials, each as its Apple Music version. Specials without
+    /// one are left out, and so is everything when TMDB can't be reached.
+    private func tmdbSpecials(_ client: TMDBClient) async -> (new: [ComedyAlbum], popular: [ComedyAlbum]) {
+        do {
+            let keyword = try await cached("tmdb:keyword") { try await client.standUpKeywordID() }
+            let now = Date.now
+            async let recent = client.specials(keyword: keyword, from: now.addingTimeInterval(-120 * 86_400), to: now)
+            async let popular = client.specials(keyword: keyword, from: now.addingTimeInterval(-3 * 365 * 86_400), to: now)
+            let (newOnes, popularOnes) = try await (recent, popular)
+            let new = await appleMusicVersions(of: Array(newOnes.prefix(20)), client: client)
+                .sorted { ($0.releaseDate ?? .distantPast) > ($1.releaseDate ?? .distantPast) }
+            return (new, await appleMusicVersions(of: Array(popularOnes.prefix(20)), client: client))
+        } catch {
+            return ([], [])
+        }
+    }
+
+    /// The Apple Music versions of specials, in the specials' order, six
+    /// lookups at a time.
+    private func appleMusicVersions(of specials: [TMDBSpecial], client: TMDBClient) async -> [ComedyAlbum] {
+        var found: [Int: ComedyAlbum] = [:]
+        await withTaskGroup(of: (Int, ComedyAlbum?).self) { group in
+            var next = 0
+            func addNext() {
+                guard next < specials.count else { return }
+                let index = next, special = specials[index]
+                group.addTask { (index, await self.appleMusicVersion(of: special, client: client)) }
+                next += 1
+            }
+            for _ in 0..<6 { addNext() }
+            for await (index, album) in group {
+                found[index] = album
+                addNext()
+            }
+        }
+        var seen = Set<String>()
+        return specials.indices.compactMap { found[$0] }.filter { seen.insert($0.id).inserted }
+    }
+
+    private func appleMusicVersion(of special: TMDBSpecial, client: TMDBClient) async -> ComedyAlbum? {
+        var comedian = special.titleParts?.comedian
+        let title = special.titleParts?.title ?? special.title
+        if comedian == nil {
+            comedian = try? await cached("tmdb:comedian:\(special.id)") { try await client.comedian(ofSpecial: special.id) }
+        }
+        guard let comedian, let found = try? await results(for: "\(comedian) \(title)") else { return nil }
+        return SpecialMatcher.best(comedian: comedian, title: title, released: special.releaseDate, in: found.specials)
     }
 
     /// Comedy found by searching the catalog, for a chart section that has

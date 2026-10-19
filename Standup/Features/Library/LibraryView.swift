@@ -85,6 +85,7 @@ struct LibraryView: View {
                 .padding(.bottom, 24)
             }
             .navigationTitle("Library")
+            .settingsButton()
             .navigationDestination(for: LibraryCategory.self) { category in
                 LibraryCategoryView(category: category)
             }

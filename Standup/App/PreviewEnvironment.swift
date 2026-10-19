@@ -12,6 +12,7 @@ extension View {
             .environment(library)
             .modelContainer(library.container)
             .environment(player)
+            .environment(SpecialsSettings(store: MemoryKeyStore(), check: { _ in }))
             .tint(Theme.accent)
     }
 }

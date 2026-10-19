@@ -90,6 +90,30 @@ final class HomeBrowseUITests: StandupUITestCase {
         require(element("library.comedians", in: app), in: app, timeout: 15, "no library")
         snap("63-library-ax", dark: true)
     }
+
+    /// Settings: the TMDB key for New and Popular Specials (mock mode
+    /// accepts any key and keeps it only in memory) and TMDB's credit.
+    @MainActor
+    func testSettingsKeepATMDBKey() {
+        for dark in [false, true] {
+            let app = launch(tab: "home", dark: dark)
+            let gear = element("settings.open", in: app)
+            require(gear, in: app, timeout: 15, "no Settings button")
+            gear.tap()
+            let field = element("settings.tmdbKey", in: app)
+            require(field, in: app, timeout: 5, "no TMDB key field")
+            XCTAssertTrue(element("settings.tmdbCredit", in: app).exists, "no TMDB credit")
+            snap("80-settings", dark: dark)
+
+            field.tap()
+            field.typeText("mock-key")
+            element("settings.tmdbSave", in: app).tap()
+            require(element("settings.tmdbSaved", in: app), in: app, timeout: 5, "the key wasn't kept")
+            snap("81-settings-key-saved", dark: dark)
+            element("settings.done", in: app).tap()
+            app.terminate()
+        }
+    }
 }
 
 /// iPad layouts. CI runs this class on an iPad simulator; on iPhone it skips.
