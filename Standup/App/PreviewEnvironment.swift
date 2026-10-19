@@ -13,6 +13,7 @@ extension View {
             .modelContainer(library.container)
             .environment(player)
             .environment(SpecialsSettings(store: MemoryKeyStore(), check: { _ in }))
+            .environment(SpotifyAccount(clientIDs: MemoryKeyStore(), tokens: MemoryKeyStore(), isMock: true))
             .tint(Theme.accent)
     }
 }

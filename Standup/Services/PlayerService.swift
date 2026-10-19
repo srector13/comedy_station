@@ -84,6 +84,11 @@ final class PlayerService {
         return Array(session.tracks.dropFirst(index + 1))
     }
 
+    /// Whether the speed menu applies: Spotify has no speed for music.
+    var supportsSpeed: Bool {
+        currentTrack.map { Provider.of($0.id) != .spotify } ?? true
+    }
+
     /// The current bit's length.
     var duration: TimeInterval {
         currentTrack?.duration ?? 0
@@ -193,9 +198,14 @@ final class PlayerService {
         await run {
             let detail = try await catalog.artist(id: artist.id)
             if shuffle {
-                let bits = detail.topBits.shuffled()
+                // Spotify has no top bits for a comedian: their latest special's.
+                var source = detail.topBits
+                if source.isEmpty, let special = detail.featured ?? detail.specials.first {
+                    source = try await catalog.album(id: special.id).tracks
+                }
+                let bits = source.shuffled()
                 guard !bits.isEmpty else { throw PlaybackError.nothingToPlay }
-                let session = Session(kind: .bits(title: "\(detail.artist.name): Top Bits"), tracks: bits, unshuffled: detail.topBits)
+                let session = Session(kind: .bits(title: "\(detail.artist.name): Top Bits"), tracks: bits, unshuffled: source)
                 try await begin(session, at: 0, position: 0, autoplay: true)
             } else {
                 guard let special = detail.featured ?? detail.specials.first else { throw PlaybackError.nothingToPlay }

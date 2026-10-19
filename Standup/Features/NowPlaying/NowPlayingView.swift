@@ -137,7 +137,14 @@ struct NowPlayingView: View {
 
     private var bottomBar: some View {
         HStack(spacing: 12) {
-            SpeedMenu()
+            if player.supportsSpeed {
+                SpeedMenu()
+            } else {
+                Text("Playing in Spotify")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("nowPlaying.spotify")
+            }
             Spacer()
             ShuffleButton()
             Button {

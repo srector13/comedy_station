@@ -19,11 +19,16 @@ struct StandupApp: App {
             .environment(\.libraryFeedbackDuration, environment.options.feedbackSeconds ?? 1.6)
             .environment(environment.player)
             .environment(environment.specials)
+            .environment(environment.spotify)
             .environment(\.play, { [player = environment.player] request in
                 Task { await player.handle(request) }
             })
             .tint(Theme.accent)
             .preferredColorScheme(environment.options.colorScheme)
+            .onOpenURL { url in
+                // The Spotify app, back from being woken to play.
+                _ = environment.spotifyEngine?.handle(url)
+            }
         }
     }
 }

@@ -34,6 +34,23 @@ The App Library keeps `MusicItemID`s and re-loads items from the catalog. It nev
 - Album and artist pages refuse non-comedy items (`CatalogError.notComedy`), so a non-comedy ID can't be opened or played.
 - **Tests:** the mock catalog contains non-comedy decoys (a pop artist and album, a soundtrack titled "Comedy of Errors", a comedy bit on a pop compilation, a pop song in a playlist). The unit tests (`ComedyFilterTests`, `MockCatalogTests`, `ChartsAndPlaylistsTests`) and UI tests (`testSearchShowsOnlyComedy`, `testPlaylistShowsOnlyComedy`) assert that each decoy never appears.
 
+## Spotify (Phase 7)
+
+Spotify is a second, optional source. The rules hold for it like this, and `scripts/audit_no_library_writes.sh` checks the code side:
+
+- **Rule 1, no library writes.**
+  - The Web API is used read-only. The only non-GET request is sign-in's token request in `SpotifyAuth.swift`.
+  - No library, follow or playlist endpoints appear anywhere in the code.
+  - App Remote never adds to the library, queues, shuffles or sets repeat in Spotify.
+- **Rule 2, playback.**
+  - Spotify audio plays only in the Spotify app, through App Remote, from `Services/Spotify/SpotifyPlaybackEngine.swift`, the one file that imports the SDK.
+  - Spotify has no equivalent of `affectsListeningHistory`. Settings says so, and suggests Spotify's Private Session.
+- **Rule 3, comedy only.**
+  - Spotify puts genres on artists, so an item counts when its comedian's Spotify genres include "comedy".
+  - When Spotify lists no genres, a comedian of the same name on Apple Music decides. Unconfirmed items are left out.
+  - Tests: `SpotifyCatalogTests`, including a pop decoy.
+- **Rule 4, branding.** Spotify items carry a "SPOTIFY" label and an "Open in Spotify" link, which Spotify's terms ask for. No Apple branding was added.
+
 ## 4. No Apple logos, wordmark or app icon
 
 - **Bundled images:** the original placeholder icon (a mic on a stand, drawn by `scripts/make_app_icon.py`), in three variants, and TMDB's own logo, which its terms require next to its credit in Settings → About.

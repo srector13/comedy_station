@@ -1,6 +1,12 @@
 # Phase 7 plan: Spotify as a second provider
 
-**Status:** plan for review, nothing built yet.
+**Status:** built. CI covers it in mock mode, and it still needs a real-device test (DEVICE_TEST.md, steps 11 to 16).
+
+Decisions taken, since the open questions below went unanswered:
+- **Search:** a switch (Apple Music | Spotify).
+- **A special on both services:** two separate App Library entries.
+- **Order:** Spotify before CarPlay.
+- **Client ID:** pasted in Settings rather than set as a GitHub secret, like the TMDB key.
 
 **Goal:** Spotify alongside Apple Music. You can search, open specials and comedians, save them to the App Library, and play them. Apple Music stays the default, and everything that works today keeps working.
 

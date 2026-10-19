@@ -72,7 +72,24 @@ Apple's comedy charts lean on novelty songs and decades-old albums. With a TMDB 
 
 The key lives in your keychain and reaches your other devices through iCloud Keychain. It's never built into the app, because the release IPAs are public. TMDB's terms ask for its logo and notice, which are in Settings → About.
 
-## 5. On the device
+## 5. Spotify (optional)
+
+With Spotify connected, Search gets an Apple Music | Spotify switch, and Spotify specials and comedians open, save to the App Library, and play. Playback happens in the Spotify app, so it needs Spotify **Premium** and the Spotify app installed.
+
+1. At [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard), **Create app** (Spotify requires the app owner to have Premium):
+   - **Name:** `Standup`.
+   - **Redirect URI:** `standup://spotify-callback`.
+   - **APIs used:** tick **Web API** and **iOS**.
+   - **iOS bundle ID:** `PolarReality.Standup`.
+2. Under **User Management**, add the Spotify account(s) that will use Standup (Development Mode allows 5).
+3. Copy the app's **Client ID**. No secret is needed: Standup signs in with PKCE.
+4. In Standup, open Settings (the gear) → Spotify. Paste the Client ID and tap **Save Client ID**, then **Connect Spotify** and sign in.
+
+The Client ID is kept in your keychain and syncs to your other devices. Each device signs in to Spotify on its own.
+
+**Listening history:** Spotify has no setting that keeps comedy out of your Spotify listening history, as Apple Music's has. Start a Private Session in Spotify if you'd rather it stayed out.
+
+## 6. On the device
 
 - Sign in to the Apple Music app with an account that has an active subscription.
 - On first launch, Standup asks for Apple Music access. If you decline, turn it on later in Settings → Standup → Media & Apple Music.

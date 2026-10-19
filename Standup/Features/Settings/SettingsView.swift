@@ -1,19 +1,26 @@
+import AuthenticationServices
 import SwiftUI
 
-/// Settings: the TMDB key behind New and Popular Specials, iCloud sync, and
-/// credits (TMDB asks for its logo and notice).
+/// Settings: the TMDB key behind New and Popular Specials, the Spotify
+/// connection, iCloud sync, and credits (TMDB asks for its logo and notice).
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.webAuthenticationSession) private var webAuthenticationSession
     @Environment(SpecialsSettings.self) private var specials
+    @Environment(SpotifyAccount.self) private var spotify
     @Environment(LibraryStore.self) private var library
     @State private var draft = ""
     @State private var isChecking = false
     @State private var problem: String?
+    @State private var clientIDDraft = ""
+    @State private var isConnecting = false
+    @State private var spotifyProblem: String?
 
     var body: some View {
         NavigationStack {
             Form {
                 specialsSection
+                spotifySection
                 if library.syncStatus != .local {
                     Section("iCloud") {
                         SyncStatusLine(status: library.syncStatus)
@@ -69,6 +76,73 @@ struct SettingsView: View {
             } else {
                 Text("Apple's comedy charts lean on novelty songs and old albums. With a free TMDB API key (themoviedb.org → Settings → API), Home and Browse show new and popular stand-up specials instead, the ones on Apple Music.")
             }
+        }
+    }
+
+    private var spotifySection: some View {
+        Section {
+            if spotify.clientID == nil {
+                TextField("Spotify Client ID", text: $clientIDDraft)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .accessibilityIdentifier("settings.spotifyClientID")
+                Button("Save Client ID") {
+                    spotify.setClientID(clientIDDraft)
+                    clientIDDraft = ""
+                }
+                .disabled(clientIDDraft.trimmingCharacters(in: .whitespaces).isEmpty)
+                .accessibilityIdentifier("settings.spotifySaveClientID")
+            } else if spotify.isConnected {
+                Label(spotify.displayName.map { "Connected as \($0)" } ?? "Connected", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(Theme.accent)
+                    .accessibilityIdentifier("settings.spotifyConnected")
+                Button("Disconnect Spotify", role: .destructive) {
+                    spotify.disconnect()
+                }
+            } else {
+                Button {
+                    Task { await connectSpotify() }
+                } label: {
+                    if isConnecting {
+                        ProgressView()
+                    } else {
+                        Text("Connect Spotify")
+                    }
+                }
+                .disabled(isConnecting)
+                .accessibilityIdentifier("settings.spotifyConnect")
+                Button("Change Client ID") {
+                    spotify.removeClientID()
+                }
+            }
+        } header: {
+            Text("Spotify")
+        } footer: {
+            if let spotifyProblem {
+                Text(spotifyProblem)
+                    .foregroundStyle(.red)
+            } else {
+                Text("Search and play stand-up on Spotify too. Spotify plays in its own app and needs Premium, and it can't keep comedy out of your Spotify listening history (a Private Session in Spotify can). Standup never saves anything to your Spotify library. Setup: docs/MUSICKIT_SETUP.md.")
+            }
+        }
+    }
+
+    private func connectSpotify() async {
+        spotifyProblem = nil
+        if spotify.isMock {
+            spotify.connectMock()
+            return
+        }
+        guard let url = spotify.signInURL() else { return }
+        isConnecting = true
+        defer { isConnecting = false }
+        do {
+            let callback = try await webAuthenticationSession.authenticate(using: url, callbackURLScheme: SpotifyAuth.callbackScheme)
+            try await spotify.finishSignIn(callback: callback)
+        } catch let error as ASWebAuthenticationSessionError where error.code == .canceledLogin {
+            // Closed the sign-in sheet: nothing to say.
+        } catch {
+            spotifyProblem = error.localizedDescription
         }
     }
 

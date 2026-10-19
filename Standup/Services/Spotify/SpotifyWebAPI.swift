@@ -74,6 +74,14 @@ struct SpotifyWebAPI: Sendable {
         return try JSONDecoder().decode(Value.self, from: data)
     }
 
+    /// The item on the Spotify web player, which Spotify's terms ask Spotify
+    /// content to link to ("spotify:album:abc" → open.spotify.com/album/abc).
+    static func webURL(for uri: String) -> URL? {
+        let parts = uri.split(separator: ":")
+        guard parts.count == 3, parts[0] == "spotify" else { return nil }
+        return URL(string: "https://open.spotify.com/\(parts[1])/\(parts[2])")
+    }
+
     /// The bare ID in a Spotify URI ("spotify:album:abc" → "abc").
     static func bareID(_ uri: String) throws -> String {
         let parts = uri.split(separator: ":")

@@ -30,6 +30,8 @@ struct LaunchOptions: Equatable {
     var feedbackSeconds: Double?
     var nowPlaying: String?
     var showNowPlaying = false
+    /// `-StandupSpotify connected`: mock mode starts signed in to Spotify.
+    var spotifyConnected = false
 
     /// Options from `value(key)`, the launch argument for each key.
     init(value: (String) -> String?) {
@@ -47,6 +49,7 @@ struct LaunchOptions: Equatable {
         feedbackSeconds = value("StandupFeedbackSeconds").flatMap(Double.init)
         nowPlaying = value("StandupNowPlaying").flatMap { $0.isEmpty ? nil : $0 }
         showNowPlaying = ["yes", "true", "1"].contains(value("StandupShowNowPlaying")?.lowercased() ?? "")
+        spotifyConnected = value("StandupSpotify")?.lowercased() == "connected"
     }
 
     init() {

@@ -1,12 +1,17 @@
 import Foundation
 import Security
 
-/// A key in the keychain, synced through iCloud Keychain to the person's
-/// other devices.
+/// A key in the keychain: synced through iCloud Keychain to the person's
+/// other devices, or kept on this one.
 struct KeychainKeyStore: KeyStoring {
     static let tmdb = KeychainKeyStore(service: "Standup.TMDB")
+    static let spotifyClientID = KeychainKeyStore(service: "Standup.SpotifyClientID")
+    /// Each device signs in to Spotify on its own: a refresh on one could
+    /// otherwise spend the other's refresh token.
+    static let spotifyTokens = KeychainKeyStore(service: "Standup.SpotifyTokens", synchronizable: false)
 
     let service: String
+    var synchronizable = true
 
     private var item: [String: Any] {
         [
@@ -35,8 +40,8 @@ struct KeychainKeyStore: KeyStoring {
         SecItemDelete(match as CFDictionary)
         guard let key, !key.isEmpty else { return }
         var new = item
-        new[kSecAttrSynchronizable as String] = true
-        new[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        new[kSecAttrSynchronizable as String] = synchronizable
+        new[kSecAttrAccessible as String] = synchronizable ? kSecAttrAccessibleAfterFirstUnlock : kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         new[kSecValueData as String] = Data(key.utf8)
         SecItemAdd(new as CFDictionary, nil)
     }

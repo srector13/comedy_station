@@ -10,9 +10,12 @@ struct ComedianRow: View {
                 .frame(width: 52, height: 52)
                 .clipShape(.circle)
             VStack(alignment: .leading, spacing: 2) {
-                Text(artist.name)
-                    .font(.body)
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    Text(artist.name)
+                        .font(.body)
+                        .lineLimit(1)
+                    ProviderBadge(id: artist.id)
+                }
                 Text("Comedian")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -38,6 +41,7 @@ struct SpecialRow: View {
                         .font(.body)
                         .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
                     if album.isExplicit { ExplicitBadge() }
+                    ProviderBadge(id: album.id)
                 }
                 Text(["Special", album.artistName, Format.year(album.releaseDate)].compactMap { $0 }.joined(separator: " · "))
                     .font(.subheadline)
@@ -80,6 +84,7 @@ struct BitRow: View {
                         .foregroundStyle(state == .none ? Color.primary : Theme.accent)
                         .lineLimit(large ? 3 : 1)
                     if track.isExplicit { ExplicitBadge() }
+                    ProviderBadge(id: track.id)
                 }
                 Text(subtitle ?? "Bit · \(track.artistName)")
                     .font(.subheadline)
@@ -189,6 +194,24 @@ struct ComedianBubble: View {
         }
         .frame(width: width)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// "SPOTIFY" beside Spotify items: Spotify's terms ask for its name next to
+/// its content. Nothing for Apple Music, the default.
+struct ProviderBadge: View {
+    let id: String
+
+    var body: some View {
+        if Provider.of(id) == .spotify {
+            Text("SPOTIFY")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 1)
+                .background(.secondary.opacity(0.18), in: .rect(cornerRadius: 3))
+                .accessibilityLabel("From Spotify")
+        }
     }
 }
 

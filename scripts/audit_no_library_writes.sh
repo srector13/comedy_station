@@ -7,6 +7,13 @@
 #      only from Services/MusicKitPlaybackEngine.swift, which builds its one
 #      queue in makeQueue with affectsListeningHistory = false.
 #
+# And their Spotify counterparts (Phase 7):
+#
+#   1. Never write to the Spotify library: no library, follow, playlist or
+#      queue calls, and the only non-GET request is sign-in's token request.
+#   2. Spotify plays only in the Spotify app, through the SDK's App Remote,
+#      from Services/Spotify/SpotifyPlaybackEngine.swift alone.
+#
 # Comment lines are ignored, so docs may name the APIs they forbid.
 # Runs in CI (ios-gate.yml) and before every commit:
 #
@@ -16,6 +23,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 SRC="Standup"
 PLAYER="Standup/Services/MusicKitPlaybackEngine.swift"
+SPOTIFY_PLAYER="Standup/Services/Spotify/SpotifyPlaybackEngine.swift"
+SPOTIFY_AUTH="Standup/Services/Spotify/SpotifyAuth.swift"
 fail=0
 
 # Swift lines matching $1 (extended regex), minus comment lines.
@@ -74,8 +83,32 @@ elif [ -n "$(code_hits 'ApplicationMusicPlayer')" ]; then
   fail=1
 fi
 
+# Spotify: read-only, and the SDK in one file.
+forbid 'me/library|me/tracks|me/albums|me/following|me/playlists|users/[^"]*/playlists|playlists/[^"]*/(items|tracks)' \
+  "The Spotify Web API is used read-only: no library, follow or playlist writes (rule 1)"
+if [ -f "$SPOTIFY_PLAYER" ]; then
+  remote_writes="$(grep -nE 'addItemToLibrary|removeItemFromLibrary|enqueueTrackUri|setRepeatMode|setShuffle' "$SPOTIFY_PLAYER" | grep -vE '^[0-9]+:[[:space:]]*//' || true)"
+  if [ -n "$remote_writes" ]; then
+    echo "::error::App Remote may play, pause and seek, but not change the Spotify library, queue or settings (rule 1)"
+    echo "$remote_writes"
+    fail=1
+  fi
+fi
+sdk="$(code_hits 'import[[:space:]]+SpotifyiOS|SPTAppRemote' | grep -v "^${SPOTIFY_PLAYER}:" || true)"
+if [ -n "$sdk" ]; then
+  echo "::error::The Spotify SDK belongs in ${SPOTIFY_PLAYER} only (rule 2)"
+  echo "$sdk"
+  fail=1
+fi
+methods="$(code_hits 'httpMethod[[:space:]]*=' | grep -v "^${SPOTIFY_AUTH}:" || true)"
+if [ -n "$methods" ]; then
+  echo "::error::Only Spotify sign-in (${SPOTIFY_AUTH}) sends anything but GET (rule 1)"
+  echo "$methods"
+  fail=1
+fi
+
 if [ "$fail" -ne 0 ]; then
   echo "Audit FAILED"
   exit 1
 fi
-echo "Audit passed: no Apple Music library writes, no system player, no listening-history queues."
+echo "Audit passed: no Apple Music or Spotify library writes, no system player, no listening-history queues, Spotify SDK in one file."

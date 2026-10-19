@@ -39,6 +39,12 @@ protocol PlaybackEngine: AnyObject {
     var isPlaying: Bool { get }
     /// The bit playing now, by song ID.
     var currentTrackID: String? { get }
+    /// Whether `rate` does anything (Spotify has no speed for music).
+    var supportsRate: Bool { get }
+}
+
+extension PlaybackEngine {
+    var supportsRate: Bool { true }
 }
 
 enum PlaybackError: LocalizedError {

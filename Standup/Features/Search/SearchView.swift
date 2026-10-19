@@ -4,13 +4,38 @@ import SwiftUI
 /// (`MainTabView`), which is what makes the bar show search as its own tab.
 struct SearchView: View {
     let model: SearchModel
+    @Environment(SpotifyAccount.self) private var spotify
 
     var body: some View {
         NavigationStack {
             content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .safeAreaInset(edge: .top) {
+                    if spotify.isConnected {
+                        providerPicker
+                    }
+                }
                 .navigationTitle("Search")
                 .comedyDestinations()
         }
+        .onChange(of: spotify.isConnected) { _, connected in
+            if !connected {
+                model.setProvider(.appleMusic)
+            }
+        }
+    }
+
+    /// Apple Music | Spotify, once Spotify is connected.
+    private var providerPicker: some View {
+        @Bindable var model = model
+        return Picker("Search", selection: $model.searchProvider) {
+            ForEach(Provider.allCases) { provider in
+                Text(provider.name).tag(provider)
+            }
+        }
+        .pickerStyle(.segmented)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 8)
     }
 
     @ViewBuilder

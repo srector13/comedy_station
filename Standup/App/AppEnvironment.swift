@@ -13,21 +13,36 @@ final class AppEnvironment {
     let library: LibraryStore
     let player: PlayerService
     let specials: SpecialsSettings
+    let spotify: SpotifyAccount
+    /// Live only: takes the Spotify app's call back after waking it.
+    let spotifyEngine: SpotifyPlaybackEngine?
 
     init(options: LaunchOptions) {
         self.options = options
         let engine: any PlaybackEngine
         if options.useMockData {
             authGate = AuthGate(access: MockMusicAccess(scenario: options.accessScenario))
-            catalog = MockCatalog()
+            let spotify = SpotifyAccount(clientIDs: MemoryKeyStore(options.spotifyConnected ? "mock-client" : nil), tokens: MemoryKeyStore(), isMock: true)
+            if options.spotifyConnected {
+                spotify.connectMock()
+            }
+            self.spotify = spotify
+            catalog = RoutingCatalog(appleMusic: MockCatalog(), spotify: MockSpotifyCatalog())
             library = .inMemory(seeded: options.seedLibrary, catalog: catalog)
             engine = MockPlaybackEngine()
+            spotifyEngine = nil
             specials = SpecialsSettings(store: MemoryKeyStore(), check: { _ in })
         } else {
             authGate = AuthGate(access: LiveMusicAccess())
-            catalog = MusicKitCatalog(tmdbKeys: KeychainKeyStore.tmdb)
+            let spotify = SpotifyAccount(clientIDs: KeychainKeyStore.spotifyClientID, tokens: KeychainKeyStore.spotifyTokens)
+            self.spotify = spotify
+            let appleMusic = MusicKitCatalog(tmdbKeys: KeychainKeyStore.tmdb)
+            let spotifyAPI = SpotifyWebAPI(token: { try await spotify.validToken() })
+            catalog = RoutingCatalog(appleMusic: appleMusic, spotify: SpotifyCatalog(api: spotifyAPI, appleMusic: appleMusic))
             library = .onDisk(catalog: catalog)
-            engine = MusicKitPlaybackEngine()
+            let spotifyEngine = SpotifyPlaybackEngine(account: spotify)
+            self.spotifyEngine = spotifyEngine
+            engine = RoutingPlaybackEngine(appleMusic: MusicKitPlaybackEngine(), spotify: spotifyEngine)
             specials = SpecialsSettings(store: KeychainKeyStore.tmdb, check: { try await TMDBClient(key: $0).check() })
         }
         player = PlayerService(engine: engine, catalog: catalog, progressStore: library)

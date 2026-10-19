@@ -2,6 +2,21 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>Spotify sign-in</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>standup</string>
+			</array>
+		</dict>
+	</array>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>spotify</string>
+	</array>
 	<key>NSAppleMusicUsageDescription</key>
 	<string>Standup plays stand-up comedy from the Apple Music catalog. It never adds anything to your Apple Music library.</string>
 	<key>StandupExpectedAppID</key>

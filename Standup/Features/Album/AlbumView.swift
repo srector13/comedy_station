@@ -128,9 +128,16 @@ struct AlbumView: View {
             HStack(spacing: 4) {
                 Text(["Comedy", Format.year(shown.releaseDate)].compactMap { $0 }.joined(separator: " · "))
                 if shown.isExplicit { ExplicitBadge() }
+                ProviderBadge(id: shown.id)
             }
             .font(.footnote)
             .foregroundStyle(.secondary)
+
+            if let spotify = SpotifyWebAPI.webURL(for: shown.id) {
+                Link("Open in Spotify", destination: spotify)
+                    .font(.footnote.weight(.semibold))
+                    .accessibilityIdentifier("album.openInSpotify")
+            }
 
             PlayButtonsLayout {
                 // A special left partway picks up where it stopped.

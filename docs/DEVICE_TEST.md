@@ -30,6 +30,17 @@ MusicKit can't play in the Simulator, so CI tests playback with a mock engine. T
 9. **Listening history (rule 2).** Open the Music app → Home / Recently Played. Nothing you played in Standup appears. Next month's Replay shouldn't count it either.
 10. **Apple Music library (rule 1).** Open Music → Library. Nothing you added in Standup is there.
 
+## Spotify (Phase 7)
+
+These steps need the Spotify app, Spotify Premium, and Spotify connected in Settings (see MUSICKIT_SETUP.md, section 5).
+
+11. **Connect.** Go to Settings (the gear) → Spotify → **Connect Spotify**. Sign in, and it says "Connected as …".
+12. **Search.** Search a comedian, then switch the control at the top to **Spotify**. Only comedians, specials and bits show, each marked SPOTIFY.
+13. **Play.** Play a Spotify special from its third bit. The first time, Standup may switch to Spotify for a moment and back. It plays from bit 3. Now Playing says "Playing in Spotify" with no speed menu.
+14. **Controls.** ±15 s, next/previous, Up Next and pause all work, and Standup follows along when you skip in Spotify.
+15. **Mixed library.** Add one Spotify special and one Apple Music special. Play Library → Bits. When the Apple Music bits run out, the Spotify bits start, and the other way round.
+16. **Spotify library (rule 1).** Open Spotify → Your Library. Nothing you added or played in Standup is saved there.
+
 ## If something fails
 
 - **"Can't Reach Apple Music" or "Can't Play"** on every special: the signing team or bundle ID doesn't match the App ID with MusicKit. See MUSICKIT_SETUP.md, step 2.

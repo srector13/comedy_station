@@ -81,12 +81,19 @@ struct ArtistView: View {
             }
             .overlay(alignment: .bottomLeading) {
                 HStack(alignment: .bottom, spacing: 12) {
-                    Text(shown.name)
-                        .font(.largeTitle.bold())
-                        .foregroundStyle(.white)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.6)
-                        .accessibilityAddTraits(.isHeader)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(shown.name)
+                            .font(.largeTitle.bold())
+                            .foregroundStyle(.white)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.6)
+                            .accessibilityAddTraits(.isHeader)
+                        if let spotify = SpotifyWebAPI.webURL(for: shown.id) {
+                            Link("Open in Spotify", destination: spotify)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white.opacity(0.9))
+                        }
+                    }
                     Spacer(minLength: 0)
                     Button {
                         play(PlayRequest(item: .artist(shown), shuffle: true))
