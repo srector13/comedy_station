@@ -9,21 +9,27 @@ import Foundation
 @MainActor
 final class MusicKitPlaybackEngine: PlaybackEngine {
     private let player = ApplicationMusicPlayer.shared
-    /// The loaded bits' song IDs, in queue order.
+    /// The bits asked for, by song ID, in the player service's order (so
+    /// its indices hold even if a song has left the catalog).
     private var trackIDs: [String] = []
 
     func load(_ tracks: [ComedyTrack], startIndex: Int, position: TimeInterval) async throws {
         guard tracks.indices.contains(startIndex) else { throw PlaybackError.nothingToPlay }
-        // Re-load the songs from the catalog by ID, then queue them in the
-        // order asked for (a special's order, or shuffled).
-        let request = MusicCatalogResourceRequest<Song>(matching: \.id, memberOf: tracks.map { MusicItemID($0.id) })
-        let found = try await request.response().items
+        // Re-load the songs from the catalog by ID, a hundred at a time (a
+        // whole library of bits can pass the API's limit), then queue them
+        // in the order asked for (a special's order, or shuffled).
+        let ids = tracks.map { MusicItemID($0.id) }
+        var found: [Song] = []
+        for start in stride(from: 0, to: ids.count, by: 100) {
+            let batch = Array(ids[start..<min(start + 100, ids.count)])
+            found += try await MusicCatalogResourceRequest<Song>(matching: \.id, memberOf: batch).response().items
+        }
         let byID = Dictionary(found.map { ($0.id.rawValue, $0) }, uniquingKeysWith: { first, _ in first })
         let songs = tracks.compactMap { byID[$0.id] }
         guard !songs.isEmpty else { throw PlaybackError.nothingToPlay }
 
         player.queue = makeQueue(songs, startingAt: byID[tracks[startIndex].id] ?? songs[0])
-        trackIDs = songs.map(\.id.rawValue)
+        trackIDs = tracks.map(\.id)
         try await player.prepareToPlay()
         if position > 0 {
             player.playbackTime = position

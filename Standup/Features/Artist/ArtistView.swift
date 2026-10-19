@@ -160,7 +160,7 @@ struct ArtistView: View {
                     ForEach(detail.topBits) { track in
                         Button {
                             if let album = track.albumStub {
-                                play(PlayRequest(item: .album(album), startIndex: max((track.trackNumber ?? 1) - 1, 0)))
+                                play(PlayRequest(item: .album(album), startIndex: max((track.trackNumber ?? 1) - 1, 0), trackID: track.id))
                             }
                         } label: {
                             BitRow(track: track, subtitle: track.albumTitle)

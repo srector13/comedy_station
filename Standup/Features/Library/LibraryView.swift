@@ -222,30 +222,66 @@ struct LibrarySpecialsGrid: View {
     }
 }
 
+/// Every saved bit, newest first. Play, Shuffle or a tapped bit plays the
+/// whole list as one queue, so shuffle mixes all of them, not just one
+/// special's. Show Special (touch and hold) opens a bit's special.
 struct LibraryBitsList: View {
+    static let queueTitle = "Library Bits"
+
     @Query(sort: \SavedTrack.dateAdded, order: .reverse) private var bits: [SavedTrack]
+    @Environment(\.play) private var play
+    @State private var shownSpecial: ComedyAlbum?
 
     var body: some View {
         if bits.isEmpty {
             LibraryEmptyView(category: .bits)
         } else {
-            List(bits) { saved in
-                let track = saved.track
-                Group {
-                    if let album = track.albumStub {
-                        NavigationLink(value: Route.album(album)) {
-                            BitRow(track: track, subtitle: [track.artistName, track.albumTitle].compactMap { $0 }.joined(separator: " · "))
-                        }
-                    } else {
-                        BitRow(track: track)
+            let tracks = bits.map(\.track)
+            List {
+                PlayButtonsLayout {
+                    Button {
+                        play(PlayRequest(item: .bits(title: Self.queueTitle, tracks: tracks)))
+                    } label: {
+                        Label("Play", systemImage: "play.fill")
+                            .frame(maxWidth: .infinity)
                     }
+                    .accessibilityIdentifier("library.bits.play")
+                    Button {
+                        play(PlayRequest(item: .bits(title: Self.queueTitle, tracks: tracks), shuffle: true))
+                    } label: {
+                        Label("Shuffle", systemImage: "shuffle")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .accessibilityIdentifier("library.bits.shuffle")
                 }
-                .libraryContextMenu(.bit(track))
-                .librarySwipeActions(.bit(track))
-                .accessibilityIdentifier("library.bit.\(saved.songID)")
+                .font(.headline)
+                .foregroundStyle(Theme.accent)
+                .buttonStyle(.glass)
+                .controlSize(.large)
+                .listRowSeparator(.hidden)
+
+                ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
+                    Button {
+                        play(PlayRequest(item: .bits(title: Self.queueTitle, tracks: tracks), startIndex: index, trackID: track.id))
+                    } label: {
+                        BitRow(track: track, subtitle: [track.artistName, track.albumTitle].compactMap { $0 }.joined(separator: " · "))
+                    }
+                    .buttonStyle(.plain)
+                    .libraryContextMenu(.bit(track), showSpecial: showSpecial(of: track))
+                    .librarySwipeActions(.bit(track))
+                    .accessibilityIdentifier("library.bit.\(track.id)")
+                }
             }
             .listStyle(.plain)
+            .navigationDestination(item: $shownSpecial) { album in
+                AlbumView(album: album)
+            }
         }
+    }
+
+    private func showSpecial(of track: ComedyTrack) -> (() -> Void)? {
+        guard let album = track.albumStub else { return nil }
+        return { shownSpecial = album }
     }
 }
 

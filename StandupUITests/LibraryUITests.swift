@@ -71,6 +71,26 @@ final class LibraryUITests: StandupUITestCase {
         require(element("library.comedian.mock-ar-maya", in: app), in: app, "the comedian isn't in the library")
     }
 
+    /// A bit tapped on Library → Bits plays the whole library of bits as
+    /// one queue (so Shuffle mixes them all), and its row shows it playing.
+    @MainActor
+    func testBitsPlayTheWholeLibrary() {
+        let app = launch(tab: "library", extra: ["-StandupLibrary", "seeded"], dark: false)
+        let bits = element("library.bits", in: app)
+        require(bits, in: app, timeout: 15, "no Bits row")
+        bits.tap()
+        let bit = element("library.bit.mock-al-overthinking-4", in: app)
+        require(bit, in: app, "no saved bit")
+        bit.tap()
+        require(labelled("Now Playing:", in: app), in: app, "the bit didn't start")
+        snap("39-library-bit-playing", dark: false)
+        XCTAssertTrue(element("library.bits.shuffle", in: app).exists, "no Shuffle on Bits")
+
+        element("miniPlayer.open", in: app).tap()
+        element("nowPlaying.upNext", in: app).tap()
+        require(labelled("From Library Bits", in: app), in: app, timeout: 5, "Up Next isn't the library's bits")
+    }
+
     /// A filled library and each of its sections, light and dark.
     @MainActor
     func testLibraryScreens() {

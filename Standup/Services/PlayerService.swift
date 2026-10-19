@@ -50,6 +50,8 @@ final class PlayerService {
     private(set) var elapsed: TimeInterval = 0
     private(set) var isPlaying = false
     private(set) var isLoading = false
+    /// The bit just tapped, until it has loaded (or failed to).
+    private(set) var pendingTrackID: String?
     private(set) var rate: Float = 1
     var errorMessage: String?
     var showsNowPlaying = false
@@ -112,6 +114,10 @@ final class PlayerService {
     // MARK: Starting
 
     func handle(_ request: PlayRequest) async {
+        pendingTrackID = request.trackID
+        defer {
+            if pendingTrackID == request.trackID { pendingTrackID = nil }
+        }
         switch request.item {
         case .album(let album):
             await play(album: album, startIndex: request.startIndex, shuffle: request.shuffle, resume: request.resume)
@@ -119,6 +125,40 @@ final class PlayerService {
             await play(artist: artist, shuffle: request.shuffle)
         case .playlist(let playlist):
             await play(playlist: playlist, startIndex: request.startIndex, shuffle: request.shuffle)
+        case .bits(let title, let tracks):
+            await play(bits: tracks, title: title, startIndex: request.startIndex, shuffle: request.shuffle)
+        }
+    }
+
+    /// How a bit's row should look: the one loading, playing or paused, or
+    /// none of those.
+    enum BitState: Equatable {
+        case none, loading, playing, paused
+    }
+
+    func state(ofBit trackID: String) -> BitState {
+        if let pendingTrackID {
+            return pendingTrackID == trackID ? .loading : .none
+        }
+        guard currentTrack?.id == trackID else { return .none }
+        return isPlaying ? .playing : .paused
+    }
+
+    /// Bits as given (the App Library's), from `startIndex` or shuffled.
+    /// Only comedy plays (rule 3); a mix doesn't resume.
+    func play(bits: [ComedyTrack], title: String, startIndex: Int = 0, shuffle: Bool = false) async {
+        await run {
+            let comedy = ComedyFilter.keep(bits)
+            guard !comedy.isEmpty else { throw PlaybackError.nothingToPlay }
+            var tracks = comedy
+            // The tapped bit, wherever the filter left it.
+            var start = bits.indices.contains(startIndex) ? comedy.firstIndex(of: bits[startIndex]) ?? 0 : 0
+            if shuffle {
+                tracks.shuffle()
+                start = 0
+            }
+            let session = Session(kind: .bits(title: title), tracks: tracks, unshuffled: shuffle ? comedy : nil)
+            try await begin(session, at: start, position: 0, autoplay: true)
         }
     }
 

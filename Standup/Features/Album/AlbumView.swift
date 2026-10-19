@@ -42,7 +42,7 @@ struct AlbumView: View {
                 }
                 ForEach(Array(detail.tracks.enumerated()), id: \.element.id) { index, track in
                     Button {
-                        play(PlayRequest(item: .album(shown), startIndex: index))
+                        play(PlayRequest(item: .album(shown), startIndex: index, trackID: track.id))
                     } label: {
                         TrackRow(number: track.trackNumber ?? index + 1, track: track)
                     }
@@ -203,18 +203,28 @@ struct TrackRow: View {
     let number: Int
     let track: ComedyTrack
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(PlayerService.self) private var player
 
     var body: some View {
         let large = typeSize.isAccessibilitySize
+        let state = player.state(ofBit: track.id)
         HStack(spacing: 14) {
-            Text("\(number)")
-                .font(.body)
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
-                .frame(minWidth: 22, alignment: .trailing)
+            // The number gives way to the playing or loading mark, as in Music.
+            Group {
+                if state == .none {
+                    Text("\(number)")
+                        .font(.body)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                } else {
+                    BitStateIndicator(state: state)
+                }
+            }
+            .frame(minWidth: 22, alignment: .trailing)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
                     Text(track.title)
+                        .foregroundStyle(state == .none ? Color.primary : Theme.accent)
                         .lineLimit(large ? 4 : 2)
                     if track.isExplicit { ExplicitBadge() }
                 }
@@ -237,6 +247,7 @@ struct TrackRow: View {
         .contentShape(.rect)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(number). \(track.title), \(Format.trackTime(track.duration))")
+        .accessibilityValue(BitStateIndicator.description(of: state))
         .accessibilityHint("Plays the special from this bit")
     }
 }

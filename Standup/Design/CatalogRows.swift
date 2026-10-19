@@ -49,24 +49,35 @@ struct SpecialRow: View {
     }
 }
 
-/// A bit in a list: artwork, title, comedian, duration.
+/// A bit in a list: artwork, title, comedian, duration. The bit playing
+/// (or just tapped and loading) is marked on its artwork and in the accent
+/// color.
 struct BitRow: View {
     let track: ComedyTrack
     var subtitle: String?
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(PlayerService.self) private var player
 
     var body: some View {
         // At accessibility sizes the duration moves under the title, which
         // gets the full width.
         let large = typeSize.isAccessibilitySize
+        let state = player.state(ofBit: track.id)
         HStack(spacing: 12) {
             ArtworkView(track.artwork, placeholder: .poster(track.albumTitle ?? track.title), pixels: 160)
                 .frame(width: 48, height: 48)
+                .overlay {
+                    if state != .none {
+                        Color.black.opacity(0.45)
+                        BitStateIndicator(state: state, tint: .white)
+                    }
+                }
                 .clipShape(.rect(cornerRadius: 6))
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
                     Text(track.title)
                         .font(.body)
+                        .foregroundStyle(state == .none ? Color.primary : Theme.accent)
                         .lineLimit(large ? 3 : 1)
                     if track.isExplicit { ExplicitBadge() }
                 }
@@ -90,6 +101,42 @@ struct BitRow: View {
             }
         }
         .accessibilityElement(children: .combine)
+        .accessibilityValue(BitStateIndicator.description(of: state))
+    }
+}
+
+/// The mark on the bit that's playing (moving bars), paused (still bars),
+/// or just tapped and loading (a spinner), so it's clear which one was
+/// picked before it starts.
+struct BitStateIndicator: View {
+    let state: PlayerService.BitState
+    var tint = Theme.accent
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        switch state {
+        case .none:
+            EmptyView()
+        case .loading:
+            ProgressView()
+                .controlSize(.small)
+                .tint(tint)
+        case .playing, .paused:
+            Image(systemName: "waveform")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(tint)
+                .symbolEffect(.variableColor.iterative, isActive: state == .playing && !reduceMotion)
+        }
+    }
+
+    /// For VoiceOver.
+    static func description(of state: PlayerService.BitState) -> String {
+        switch state {
+        case .none: ""
+        case .loading: "Loading"
+        case .playing: "Now Playing"
+        case .paused: "Paused"
+        }
     }
 }
 

@@ -88,6 +88,36 @@ struct PlayerServiceTests {
         #expect(store.progress(for: special.id)?.lastTrackIndex == player.index)
     }
 
+    @Test func libraryBitsPlayAsOneQueueFromTheTappedBit() async {
+        let parking = MockData.tracks["mock-al-parking"]!
+        let library = Array(bits.prefix(3)) + Array(parking.prefix(3))
+        await player.handle(PlayRequest(item: .bits(title: "Library Bits", tracks: library), startIndex: 4, trackID: library[4].id))
+        #expect(player.session?.title == "Library Bits")
+        #expect(player.session?.tracks == library)
+        #expect(player.currentTrack == library[4])
+        #expect(player.pendingTrackID == nil)
+        #expect(player.state(ofBit: library[4].id) == .playing)
+        #expect(player.state(ofBit: library[0].id) == .none)
+
+        await player.setShuffle(true)
+        #expect(player.currentTrack == library[4])
+        #expect(Set(player.session?.tracks ?? []) == Set(library))
+    }
+
+    @Test func libraryBitsLeaveOutAnythingNotComedy() async {
+        let decoy = MockData.tracks["mock-al-summer"]!
+        let mixed = [bits[0]] + decoy + [bits[1]]
+        await player.handle(PlayRequest(item: .bits(title: "Library Bits", tracks: mixed), startIndex: 2, trackID: bits[1].id))
+        #expect(player.session?.tracks == [bits[0], bits[1]])
+        #expect(player.currentTrack == bits[1])
+    }
+
+    @Test func aPausedBitShowsAsPaused() async {
+        await player.handle(PlayRequest(item: .album(special), startIndex: 1, trackID: bits[1].id))
+        player.pause()
+        #expect(player.state(ofBit: bits[1].id) == .paused)
+    }
+
     @Test func playingInOrderTurnsShuffleOff() async {
         await player.play(album: special, shuffle: true)
         await player.play(album: special)

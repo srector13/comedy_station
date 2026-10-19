@@ -6,6 +6,8 @@ struct PlayRequest: Equatable, Sendable {
         case album(ComedyAlbum)
         case artist(ComedyArtist)
         case playlist(ComedyPlaylist)
+        /// A list of bits as they are (the App Library's Bits), under a title.
+        case bits(title: String, tracks: [ComedyTrack])
     }
 
     var item: Item
@@ -15,6 +17,8 @@ struct PlayRequest: Equatable, Sendable {
     /// Pick up a special where it was left off, if it was (Play / Resume);
     /// a tapped bit starts that bit instead.
     var resume = false
+    /// The bit that was tapped, so its row can show it loading.
+    var trackID: String?
 }
 
 /// Plays a queue of bits. The live engine wraps MusicKit's

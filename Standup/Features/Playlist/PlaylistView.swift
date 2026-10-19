@@ -30,7 +30,7 @@ struct PlaylistView: View {
             case .loaded(let detail):
                 ForEach(Array(detail.tracks.enumerated()), id: \.element.id) { index, track in
                     Button {
-                        play(PlayRequest(item: .playlist(playlist), startIndex: index))
+                        play(PlayRequest(item: .playlist(playlist), startIndex: index, trackID: track.id))
                     } label: {
                         BitRow(track: track, subtitle: [track.artistName, track.albumTitle].compactMap { $0 }.joined(separator: " · "))
                     }

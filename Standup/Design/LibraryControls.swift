@@ -32,13 +32,18 @@ struct LibraryToolbarButton: View {
     }
 }
 
-/// Add to Library / Remove from Library in a long-press menu.
+/// Add to Library / Remove from Library in a long-press menu, after Show
+/// Special where a row doesn't already open it.
 struct LibraryContextMenu: ViewModifier {
     let item: LibraryItem
+    var showSpecial: (() -> Void)?
     @Environment(LibraryStore.self) private var library
 
     func body(content: Content) -> some View {
         content.contextMenu {
+            if let showSpecial {
+                Button("Show Special", systemImage: "square.stack", action: showSpecial)
+            }
             if library.contains(item) {
                 Button("Remove from Library", systemImage: "minus.circle", role: .destructive) {
                     library.remove(item)
@@ -78,8 +83,8 @@ struct LibrarySwipeActions: ViewModifier {
 }
 
 extension View {
-    func libraryContextMenu(_ item: LibraryItem) -> some View {
-        modifier(LibraryContextMenu(item: item))
+    func libraryContextMenu(_ item: LibraryItem, showSpecial: (() -> Void)? = nil) -> some View {
+        modifier(LibraryContextMenu(item: item, showSpecial: showSpecial))
     }
 
     func librarySwipeActions(_ item: LibraryItem) -> some View {
