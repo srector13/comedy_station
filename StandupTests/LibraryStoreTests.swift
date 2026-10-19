@@ -173,7 +173,7 @@ struct LibraryStoreTests {
         #expect(store.bitIDs == Set(tracks.map(\.id)))
         let saved = try bits(in: store)
         #expect(saved.map(\.songID) == tracks.map(\.id))
-        #expect(saved.allSatisfy(\.isAutomatic))
+        #expect(saved.allSatisfy { $0.isAutomatic })
     }
 
     @Test func removingTheSpecialTakesItsBitsButKeepsOnesAddedOnPurpose() async throws {
