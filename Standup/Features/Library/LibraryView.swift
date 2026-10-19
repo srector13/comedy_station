@@ -52,22 +52,26 @@ struct LibraryView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                ForEach(LibraryCategory.allCases) { category in
-                    NavigationLink(value: category) {
-                        Label {
-                            Text(category.title)
-                                .font(.title3)
-                        } icon: {
-                            Image(systemName: category.symbol)
-                                .foregroundStyle(Theme.accent)
+            // A scroll view rather than a List: a List puts a disclosure
+            // chevron on every link, including the grid's cards.
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(LibraryCategory.allCases) { category in
+                        NavigationLink(value: category) {
+                            CategoryRow(category: category)
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("library.\(category.rawValue)")
+                        Divider()
+                            .padding(.leading, 44)
                     }
-                    .accessibilityIdentifier("library.\(category.rawValue)")
-                }
 
-                if !specials.isEmpty {
-                    Section {
+                    if !specials.isEmpty {
+                        Text("Recently Added")
+                            .font(.title2.bold())
+                            .accessibilityAddTraits(.isHeader)
+                            .padding(.top, 28)
+                            .padding(.bottom, 12)
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 16, alignment: .top)], spacing: 20) {
                             ForEach(specials.prefix(6)) { saved in
                                 NavigationLink(value: Route.album(saved.album)) {
@@ -77,23 +81,41 @@ struct LibraryView: View {
                                 .libraryContextMenu(.special(saved.album))
                             }
                         }
-                        .padding(.vertical, 8)
-                        .listRowSeparator(.hidden)
-                    } header: {
-                        Text("Recently Added")
-                            .font(.title2.bold())
-                            .foregroundStyle(.primary)
-                            .textCase(nil)
                     }
                 }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 24)
             }
-            .listStyle(.plain)
             .navigationTitle("Library")
             .navigationDestination(for: LibraryCategory.self) { category in
                 LibraryCategoryView(category: category)
             }
             .comedyDestinations()
         }
+    }
+}
+
+/// A library section row, Music style: accent symbol, title, chevron.
+private struct CategoryRow: View {
+    let category: LibraryCategory
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: category.symbol)
+                .font(.title3)
+                .foregroundStyle(Theme.accent)
+                .frame(width: 30)
+                .accessibilityHidden(true)
+            Text(category.title)
+                .font(.title3)
+            Spacer(minLength: 8)
+            Image(systemName: "chevron.forward")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.tertiary)
+                .accessibilityHidden(true)
+        }
+        .padding(.vertical, 12)
+        .contentShape(.rect)
     }
 }
 
