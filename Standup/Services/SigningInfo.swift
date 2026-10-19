@@ -12,6 +12,10 @@ struct SigningInfo: Equatable, Sendable {
     var bundleID: String?
     /// "TEAMID.bundle.id" the app was built for (`StandupExpectedAppID`).
     var expected: String?
+    /// The iCloud containers the profile allows.
+    var iCloudContainers: [String] = []
+    /// Whether the profile allows CloudKit.
+    var allowsCloudKit = false
 
     static var current: SigningInfo {
         var info = SigningInfo(
@@ -35,7 +39,29 @@ struct SigningInfo: Equatable, Sendable {
         profileName = plist["Name"] as? String
         teamName = plist["TeamName"] as? String
         teamID = (plist["TeamIdentifier"] as? [String])?.first
-        applicationIdentifier = (plist["Entitlements"] as? [String: Any])?["application-identifier"] as? String
+        let entitlements = plist["Entitlements"] as? [String: Any]
+        applicationIdentifier = entitlements?["application-identifier"] as? String
+        iCloudContainers = entitlements?["com.apple.developer.icloud-container-identifiers"] as? [String] ?? []
+        // "*" in a development profile, a list once narrowed by Xcode.
+        let services = entitlements?["com.apple.developer.icloud-services"]
+        allowsCloudKit = (services as? String) == "*" || (services as? [String])?.contains("CloudKit") == true
+    }
+
+    /// The App Library's iCloud container: "iCloud." and the bundle ID.
+    var iCloudContainer: String? {
+        bundleID.map { "iCloud.\($0)" }
+    }
+
+    /// Why the App Library can't sync through iCloud in this copy, or nil
+    /// when it can. Feather signs with the profile's entitlements, so the
+    /// profile has to include the container.
+    var iCloudProblem: String? {
+        guard let container = iCloudContainer else { return "This copy has no bundle ID." }
+        guard applicationIdentifier != nil else { return "This copy has no provisioning profile." }
+        guard allowsCloudKit, iCloudContainers.contains(container) else {
+            return "Its provisioning profile doesn't include iCloud with the container \(container)."
+        }
+        return nil
     }
 
     /// What this copy is signed as: the profile's app ID, or the bundle ID

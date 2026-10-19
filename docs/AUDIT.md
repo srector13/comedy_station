@@ -7,7 +7,7 @@ How each of Standup's four hard rules is enforced, and the evidence as of Phase 
 | Check | Result |
 |---|---|
 | `MusicLibrary`, `LibraryPlaylist`, `MPMediaLibrary`, `MPMediaPlaylist`, `MPMusicPlayerController`, `addItem(withProductID:)`, `import MediaPlayer` in app code | none (the audit fails the build on any) |
-| What the app saves | only `LibraryStore` (SwiftData: `SavedComedian`, `SavedAlbum`, `SavedTrack`, `PlaybackProgress`), in its own store `StandupLibrary` |
+| What the app saves | only `LibraryStore` (SwiftData: `SavedComedian`, `SavedAlbum`, `SavedTrack`, `PlaybackProgress`), in its own store `StandupLibrary`, synced through the person's private CloudKit database `iCloud.PolarReality.Standup` when the profile allows it |
 | Downloads | not offered: they would need the Apple Music library |
 
 The App Library keeps `MusicItemID`s and re-loads items from the catalog. It never asks Apple Music to add anything.

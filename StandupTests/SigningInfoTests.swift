@@ -5,7 +5,7 @@ import Testing
 struct SigningInfoTests {
     /// A provisioning profile as Xcode or Feather embeds it: binary CMS
     /// bytes around an XML property list.
-    private func profile(appID: String, team: String, teamName: String) -> Data {
+    private func profile(appID: String, team: String, teamName: String, iCloud: String = "") -> Data {
         let plist = """
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -17,6 +17,7 @@ struct SigningInfoTests {
             <key>Entitlements</key>
             <dict>
                 <key>application-identifier</key><string>\(appID)</string>
+                \(iCloud)
             </dict>
         </dict>
         </plist>
@@ -52,6 +53,30 @@ struct SigningInfoTests {
         var info = SigningInfo(bundleID: "PolarReailty.Standup", expected: "68L4YU8U89.PolarReality.Standup")
         info.read(profile: profile(appID: "68L4YU8U89.PolarReality.Standup", team: "68L4YU8U89", teamName: "Stephen Rector"))
         #expect(info.summary.contains("\nIts bundle ID is PolarReailty.Standup.\n"))
+    }
+
+    @Test func iCloudNeedsTheContainerInTheProfile() {
+        var info = SigningInfo(bundleID: "PolarReality.Standup", expected: "68L4YU8U89.PolarReality.Standup")
+        info.read(profile: profile(appID: "68L4YU8U89.PolarReality.Standup", team: "68L4YU8U89", teamName: "Stephen Rector"))
+        #expect(info.iCloudContainer == "iCloud.PolarReality.Standup")
+        #expect(info.iCloudProblem == "Its provisioning profile doesn't include iCloud with the container iCloud.PolarReality.Standup.")
+
+        info.read(profile: profile(appID: "68L4YU8U89.PolarReality.Standup", team: "68L4YU8U89", teamName: "Stephen Rector", iCloud: """
+            <key>com.apple.developer.icloud-container-identifiers</key><array><string>iCloud.PolarReality.Standup</string></array>
+            <key>com.apple.developer.icloud-services</key><string>*</string>
+            """))
+        #expect(info.allowsCloudKit)
+        #expect(info.iCloudProblem == nil)
+    }
+
+    @Test func iCloudWithAnotherContainerIsAProblem() {
+        var info = SigningInfo(bundleID: "PolarReality.Standup")
+        info.read(profile: profile(appID: "68L4YU8U89.PolarReality.Standup", team: "68L4YU8U89", teamName: "Stephen Rector", iCloud: """
+            <key>com.apple.developer.icloud-container-identifiers</key><array><string>iCloud.PolarReality.Other</string></array>
+            <key>com.apple.developer.icloud-services</key><array><string>CloudKit</string></array>
+            """))
+        #expect(info.allowsCloudKit)
+        #expect(info.iCloudProblem != nil)
     }
 
     @Test func noProfileFallsBackToTheBundleID() {

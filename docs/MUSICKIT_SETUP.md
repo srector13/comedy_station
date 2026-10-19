@@ -45,7 +45,23 @@ A line "Its bundle ID is …" is added when the app's bundle ID differs from its
 | A bundle ID other than `PolarReality.Standup` (or a wildcard `*`) | Use an explicit profile for `PolarReality.Standup` and turn off Feather's bundle ID change. |
 | Exactly `68L4YU8U89.PolarReality.Standup` | The signing is right. Check that **MusicKit** is ticked under the App ID's **App Services** tab and saved. Then wait a few minutes and tap **Check Again**. |
 
-## 3. On the device
+## 3. iCloud sync for the App Library (optional)
+
+The App Library (comedians, specials, bits, where you left off) syncs through your private iCloud database. That keeps it the same on every device, and it comes back after you delete and reinstall the app. Feather signs with the provisioning profile's entitlements, so the profile has to include iCloud:
+
+1. **Identifiers → + → iCloud Containers.** Description `Standup`, identifier `iCloud.PolarReality.Standup`. Register.
+2. **Identifiers → PolarReality.Standup → Capabilities tab.** Tick **iCloud** (with CloudKit), click **Edit** or **Configure** next to it, tick `iCloud.PolarReality.Standup`, and continue. Tick **Push Notifications** too, so changes arrive without reopening the app. Save, then confirm.
+3. **Profiles → your Standup profile → Edit → Save** to regenerate it with iCloud, then download it again. In Safari, long-press Download and choose **Download Linked File**.
+4. **Feather:** sign the IPA with the new profile. Keep the bundle ID.
+5. On each device, be signed in to iCloud. Each device also has to be in the profile's device list, since it's a development profile.
+
+The foot of the Library tab says whether the library is syncing, when it last synced, or why it isn't. Without iCloud in the profile, the library stays on that device, as before.
+
+- **Development environment:** a copy signed with a development profile syncs to CloudKit's Development environment. Keep using a development profile. An Ad Hoc or App Store build uses Production, which starts empty and needs the schema deployed in the CloudKit Console first.
+- **No data loss when you turn it on:** items saved before iCloud was set up upload on the first sync.
+- **Duplicates are merged:** the same item added on two devices is merged into one.
+
+## 4. On the device
 
 - Sign in to the Apple Music app with an account that has an active subscription.
 - On first launch, Standup asks for Apple Music access. If you decline, turn it on later in Settings → Standup → Media & Apple Music.

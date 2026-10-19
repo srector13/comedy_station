@@ -200,6 +200,53 @@ struct LibraryStoreTests {
         #expect(store.specialIDs == [parking.id])
     }
 
+    // MARK: Records synced in twice
+
+    @Test func syncedDuplicatesMergeIntoOne() throws {
+        let store = LibraryStore.inMemory()
+        let context = store.container.mainContext
+        let lower = try #require(MockData.album(id: "mock-al-lower"))
+        let maya = try #require(MockData.artist(id: "mock-ar-maya"))
+        let bit = try #require(MockData.tracks[lower.id]?.first)
+        let early = Date(timeIntervalSince1970: 1_700_000_000)
+        let late = early.addingTimeInterval(3600)
+
+        var withoutArtist = lower
+        withoutArtist.artistID = nil
+        context.insert(SavedAlbum(withoutArtist, dateAdded: early))
+        context.insert(SavedAlbum(lower, dateAdded: late))
+        context.insert(SavedComedian(maya, dateAdded: early, isAutomatic: true))
+        context.insert(SavedComedian(maya, dateAdded: late, isAutomatic: false))
+        context.insert(SavedTrack(bit, dateAdded: early, isAutomatic: true))
+        context.insert(SavedTrack(bit, dateAdded: late, isAutomatic: true))
+        context.insert(PlaybackProgress(itemID: lower.id, isAlbum: true, lastTrackIndex: 1, lastPlayed: early, title: lower.title, artistName: lower.artistName))
+        context.insert(PlaybackProgress(itemID: lower.id, isAlbum: true, lastTrackIndex: 4, lastPlayed: late, title: lower.title, artistName: lower.artistName))
+        try context.save()
+
+        store.mergeSyncedDuplicates()
+
+        let albums = try context.fetch(FetchDescriptor<SavedAlbum>())
+        #expect(albums.count == 1)
+        #expect(albums.first?.dateAdded == early)
+        #expect(albums.first?.artistID == lower.artistID)
+        let comedians = try context.fetch(FetchDescriptor<SavedComedian>())
+        #expect(comedians.count == 1)
+        #expect(comedians.first?.isAutomatic == false)
+        let bits = try context.fetch(FetchDescriptor<SavedTrack>())
+        #expect(bits.count == 1)
+        #expect(bits.first?.isAutomatic == true)
+        let progress = try context.fetch(FetchDescriptor<PlaybackProgress>())
+        #expect(progress.count == 1)
+        #expect(progress.first?.lastTrackIndex == 4)
+        #expect(store.specialIDs == [lower.id])
+        #expect(store.comedianIDs == [maya.id])
+        #expect(store.bitIDs == [bit.id])
+    }
+
+    @Test func aLocalStoreShowsNoSyncStatus() {
+        #expect(LibraryStore.inMemory().syncStatus == .local)
+    }
+
     // MARK: Playback progress
 
     @Test func progressRoundTripsAndUpdatesInPlace() throws {

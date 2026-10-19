@@ -1,10 +1,12 @@
+import CoreData
 import Foundation
 import Observation
 import SwiftData
 
 /// The App Library: comedians, specials and bits saved in Standup's own
-/// SwiftData store. This is the only place the app saves anything, and it
-/// never touches the Apple Music library (hard rule 1).
+/// SwiftData store, synced through the person's private iCloud database
+/// when this copy is signed for it. This is the only place the app saves
+/// anything, and it never touches the Apple Music library (hard rule 1).
 @MainActor
 @Observable
 final class LibraryStore {
@@ -13,6 +15,18 @@ final class LibraryStore {
         let id = UUID()
         let message: String
         let symbol: String
+    }
+
+    /// Whether, and how well, the App Library syncs through iCloud.
+    enum SyncStatus: Equatable {
+        /// Mock mode, previews and tests: a local store, nothing to show.
+        case local
+        /// This copy can't sync; why.
+        case unavailable(String)
+        /// Set up, and nothing has finished yet.
+        case starting
+        case synced(Date)
+        case failed(String)
     }
 
     static let schema = Schema([SavedComedian.self, SavedAlbum.self, SavedTrack.self, PlaybackProgress.self])
@@ -24,12 +38,14 @@ final class LibraryStore {
     private(set) var specialIDs: Set<String> = []
     private(set) var bitIDs: Set<String> = []
     private(set) var feedback: Feedback?
+    private(set) var syncStatus = SyncStatus.local
 
     /// Looks up a special's comedian and bits when it's added
     /// (`addRelated(to:)`).
     @ObservationIgnored private let catalog: (any CatalogProviding)?
     /// The latest such lookup, so tests can wait for it.
     @ObservationIgnored private(set) var relatedLookup: Task<Void, Never>?
+    @ObservationIgnored private var syncObserver: (any NSObjectProtocol)?
 
     private var context: ModelContext { container.mainContext }
 
@@ -39,16 +55,63 @@ final class LibraryStore {
         reloadIDs()
     }
 
-    /// The on-disk store.
-    static func onDisk(catalog: any CatalogProviding) -> LibraryStore {
-        let configuration = ModelConfiguration("StandupLibrary", schema: schema, cloudKitDatabase: .none)
+    /// The on-disk store, synced with iCloud when the profile this copy
+    /// is signed with includes the app's iCloud container. Without it the
+    /// store stays on this device, and the Library tab says why.
+    static func onDisk(catalog: any CatalogProviding, signing: SigningInfo = .current) -> LibraryStore {
+        guard signing.iCloudProblem == nil, let containerID = signing.iCloudContainer else {
+            return local(catalog: catalog, status: .unavailable(signing.iCloudProblem ?? "This copy has no bundle ID."))
+        }
         do {
-            return LibraryStore(container: try ModelContainer(for: schema, configurations: configuration), catalog: catalog)
+            let store = LibraryStore(container: try diskContainer(.private(containerID)), catalog: catalog)
+            store.syncStatus = .starting
+            store.observeSync()
+            store.mergeSyncedDuplicates()
+            return store
         } catch {
-            // A store that can't open (a failed migration) shouldn't take the
-            // app down; run on an empty in-memory library instead.
+            return local(catalog: catalog, status: .unavailable("The iCloud library didn't open (\(error.localizedDescription))."))
+        }
+    }
+
+    /// The same store file, without iCloud.
+    private static func local(catalog: any CatalogProviding, status: SyncStatus) -> LibraryStore {
+        do {
+            let store = LibraryStore(container: try diskContainer(.none), catalog: catalog)
+            store.syncStatus = status
+            return store
+        } catch {
+            // A store that won't open (a failed migration) is moved aside,
+            // not deleted, and a new one started, so the app keeps saving.
+            moveStoreAside()
+            if let container = try? diskContainer(.none) {
+                let store = LibraryStore(container: container, catalog: catalog)
+                store.syncStatus = status
+                return store
+            }
             assertionFailure("Couldn't open the App Library: \(error)")
-            return inMemory(catalog: catalog)
+            let store = inMemory(catalog: catalog)
+            store.syncStatus = .failed("The App Library didn't open (\(error.localizedDescription)), so nothing added now will be kept.")
+            return store
+        }
+    }
+
+    private static func diskConfiguration(_ database: ModelConfiguration.CloudKitDatabase) -> ModelConfiguration {
+        ModelConfiguration("StandupLibrary", schema: schema, cloudKitDatabase: database)
+    }
+
+    private static func diskContainer(_ database: ModelConfiguration.CloudKitDatabase) throws -> ModelContainer {
+        try ModelContainer(for: schema, configurations: diskConfiguration(database))
+    }
+
+    /// Renames the store's files (the database and its -wal and -shm) with
+    /// an "unreadable" date stamp.
+    private static func moveStoreAside() {
+        let url = diskConfiguration(.none).url
+        let stamp = Int(Date.now.timeIntervalSince1970)
+        for suffix in ["", "-wal", "-shm"] {
+            let file = URL(filePath: url.path(percentEncoded: false) + suffix)
+            let aside = url.deletingPathExtension().appendingPathExtension("unreadable-\(stamp).store\(suffix)")
+            try? FileManager.default.moveItem(at: file, to: aside)
         }
     }
 
@@ -195,6 +258,82 @@ final class LibraryStore {
         else { return }
         context.delete(comedian)
         comedianIDs.remove(artistID)
+    }
+
+    // MARK: iCloud
+
+    /// Follows iCloud sync for the Library tab's status line, and after
+    /// each import merges any records two devices both added.
+    private func observeSync() {
+        syncObserver = NotificationCenter.default.addObserver(
+            forName: NSPersistentCloudKitContainer.eventChangedNotification, object: nil, queue: .main
+        ) { [weak self] note in
+            guard let event = note.userInfo?[NSPersistentCloudKitContainer.eventNotificationUserInfoKey] as? NSPersistentCloudKitContainer.Event,
+                  let end = event.endDate
+            else { return }
+            let imported = event.type == .import
+            let failure = event.succeeded ? nil : event.error?.localizedDescription ?? "iCloud didn't say why."
+            MainActor.assumeIsolated {
+                self?.syncEventEnded(at: end, imported: imported, failure: failure)
+            }
+        }
+    }
+
+    private func syncEventEnded(at date: Date, imported: Bool, failure: String?) {
+        if let failure {
+            syncStatus = .failed(failure)
+            return
+        }
+        syncStatus = .synced(date)
+        if imported {
+            mergeSyncedDuplicates()
+        }
+    }
+
+    /// iCloud can't hold an item to one record, so a special added on two
+    /// devices arrives twice. Keeps one of each: the first added (for
+    /// progress, the latest played), with what the copies knew combined.
+    func mergeSyncedDuplicates() {
+        var merged = false
+        for copies in duplicates(SavedComedian.self, by: \.artistID) {
+            let keep = copies.min { $0.dateAdded < $1.dateAdded }!
+            keep.isAutomatic = copies.allSatisfy(\.isAutomatic)
+            delete(copies, except: keep)
+            merged = true
+        }
+        for copies in duplicates(SavedAlbum.self, by: \.albumID) {
+            let keep = copies.min { $0.dateAdded < $1.dateAdded }!
+            keep.artistID = keep.artistID ?? copies.lazy.compactMap(\.artistID).first
+            delete(copies, except: keep)
+            merged = true
+        }
+        for copies in duplicates(SavedTrack.self, by: \.songID) {
+            let keep = copies.min { $0.dateAdded < $1.dateAdded }!
+            keep.isAutomatic = copies.allSatisfy(\.isAutomatic)
+            delete(copies, except: keep)
+            merged = true
+        }
+        for copies in duplicates(PlaybackProgress.self, by: \.itemID) {
+            let keep = copies.max { $0.lastPlayed < $1.lastPlayed }!
+            delete(copies, except: keep)
+            merged = true
+        }
+        if merged {
+            save()
+        }
+        reloadIDs()
+    }
+
+    /// The records that share an ID, for each ID with more than one.
+    private func duplicates<Model: PersistentModel>(_ type: Model.Type, by id: KeyPath<Model, String>) -> [[Model]] {
+        let all = (try? context.fetch(FetchDescriptor<Model>())) ?? []
+        return Dictionary(grouping: all) { $0[keyPath: id] }.values.filter { $0.count > 1 }
+    }
+
+    private func delete<Model: PersistentModel>(_ copies: [Model], except keep: Model) {
+        for copy in copies where copy !== keep {
+            context.delete(copy)
+        }
     }
 
     private func savedAlbum(_ id: String) -> SavedAlbum? {

@@ -43,6 +43,7 @@ enum LibraryCategory: String, CaseIterable, Identifiable, Hashable {
 /// library.
 struct LibraryView: View {
     @Query(sort: \SavedAlbum.dateAdded, order: .reverse) private var specials: [SavedAlbum]
+    @Environment(LibraryStore.self) private var library
 
     var body: some View {
         NavigationStack {
@@ -76,6 +77,9 @@ struct LibraryView: View {
                             }
                         }
                     }
+
+                    SyncStatusLine(status: library.syncStatus)
+                        .padding(.top, 28)
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 24)
@@ -85,6 +89,37 @@ struct LibraryView: View {
                 LibraryCategoryView(category: category)
             }
             .comedyDestinations()
+        }
+    }
+}
+
+/// Whether the App Library syncs with iCloud, at the foot of Library.
+/// Nothing in mock mode.
+struct SyncStatusLine: View {
+    let status: LibraryStore.SyncStatus
+
+    var body: some View {
+        if case let (symbol, text)? = content {
+            Label(text, systemImage: symbol)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("library.sync")
+        }
+    }
+
+    private var content: (String, String)? {
+        switch status {
+        case .local:
+            nil
+        case .unavailable(let reason):
+            ("icloud.slash", "Your library is saved on this device only. \(reason)")
+        case .starting:
+            ("icloud", "Syncing your library with iCloud…")
+        case .synced(let date):
+            ("checkmark.icloud", "Library synced with iCloud \(date.formatted(.relative(presentation: .named))).")
+        case .failed(let reason):
+            ("exclamationmark.icloud", "iCloud sync didn't work: \(reason)")
         }
     }
 }

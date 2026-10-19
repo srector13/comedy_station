@@ -1,19 +1,24 @@
 import Foundation
 import SwiftData
 
-// The App Library: Standup's own store on this device, separate from the
-// Apple Music library (which the app never writes to). Each model keeps the
-// MusicItemID to re-load the full item from the catalog, plus enough cached
-// metadata to draw the library offline.
+// The App Library: Standup's own store, separate from the Apple Music
+// library (which the app never writes to). Each model keeps the MusicItemID
+// to re-load the full item from the catalog, plus enough cached metadata to
+// draw the library offline.
+//
+// The store syncs through the person's private iCloud database when the app
+// is signed for it, so every property has a default and nothing is marked
+// unique (CloudKit allows neither). `LibraryStore.mergeSyncedDuplicates()`
+// keeps one record per item instead.
 
 @Model
 final class SavedComedian {
-    @Attribute(.unique) var artistID: String
-    var name: String
+    var artistID: String = ""
+    var name: String = ""
     var artworkTemplate: String?
     var artworkRGB: Int?
-    var genreNames: [String]
-    var dateAdded: Date
+    var genreNames: [String] = []
+    var dateAdded: Date = Date.now
     /// Added because one of their specials was, not on its own; leaves
     /// again with the last such special.
     var isAutomatic: Bool = false
@@ -40,17 +45,17 @@ final class SavedComedian {
 /// A saved special.
 @Model
 final class SavedAlbum {
-    @Attribute(.unique) var albumID: String
-    var title: String
-    var artistName: String
+    var albumID: String = ""
+    var title: String = ""
+    var artistName: String = ""
     var artistID: String?
     var artworkTemplate: String?
     var artworkRGB: Int?
     var releaseDate: Date?
-    var trackCount: Int
-    var genreNames: [String]
-    var isExplicit: Bool
-    var dateAdded: Date
+    var trackCount: Int = 0
+    var genreNames: [String] = []
+    var isExplicit: Bool = false
+    var dateAdded: Date = Date.now
 
     init(_ album: ComedyAlbum, dateAdded: Date = .now) {
         albumID = album.id
@@ -78,19 +83,19 @@ final class SavedAlbum {
 /// A saved bit.
 @Model
 final class SavedTrack {
-    @Attribute(.unique) var songID: String
-    var title: String
+    var songID: String = ""
+    var title: String = ""
     /// The comedian.
-    var artistName: String
+    var artistName: String = ""
     var albumID: String?
     var albumTitle: String?
     var duration: TimeInterval?
     var trackNumber: Int?
     var artworkTemplate: String?
     var artworkRGB: Int?
-    var albumGenreNames: [String]
-    var isExplicit: Bool
-    var dateAdded: Date
+    var albumGenreNames: [String] = []
+    var isExplicit: Bool = false
+    var dateAdded: Date = Date.now
     /// Added because its special was, not on its own; leaves again with
     /// the special.
     var isAutomatic: Bool = false
@@ -127,20 +132,20 @@ final class SavedTrack {
 @Model
 final class PlaybackProgress {
     /// The album ID, or the song ID for a bit played on its own.
-    @Attribute(.unique) var itemID: String
-    var isAlbum: Bool
-    var lastTrackIndex: Int
-    var lastPosition: TimeInterval
-    var lastPlayed: Date
-    var finished: Bool
+    var itemID: String = ""
+    var isAlbum: Bool = true
+    var lastTrackIndex: Int = 0
+    var lastPosition: TimeInterval = 0
+    var lastPlayed: Date = Date.now
+    var finished: Bool = false
     /// 0...1 through the whole set, for the progress ring.
-    var fractionComplete: Double
+    var fractionComplete: Double = 0
     // Cached so Continue Listening draws offline.
-    var title: String
-    var artistName: String
+    var title: String = ""
+    var artistName: String = ""
     var artworkTemplate: String?
     var artworkRGB: Int?
-    var trackCount: Int
+    var trackCount: Int = 0
     /// The whole set's length, for "N min left".
     var totalDuration: TimeInterval = 0
 

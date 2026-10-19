@@ -34,6 +34,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Resources/Info.plist,
+				Resources/Standup.entitlements,
 			);
 			target = 5D0A00000000000000000010 /* Standup */;
 		};
@@ -425,6 +426,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0.0;
+				CODE_SIGN_ENTITLEMENTS = Standup/Resources/Standup.entitlements;
 				PRODUCT_BUNDLE_IDENTIFIER = PolarReality.Standup;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -455,6 +457,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0.0;
+				CODE_SIGN_ENTITLEMENTS = Standup/Resources/Standup.entitlements;
 				PRODUCT_BUNDLE_IDENTIFIER = PolarReality.Standup;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
