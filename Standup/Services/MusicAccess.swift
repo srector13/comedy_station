@@ -15,6 +15,9 @@ enum AccessState: Equatable, Sendable {
     /// The subscription check failed (offline, or MusicKit isn't set up for
     /// this bundle ID / signing team).
     case unavailable(String)
+    /// Apple Music refused this copy a developer token: it isn't signed as
+    /// the App ID with MusicKit enabled. Carries the signing details.
+    case misconfigured(String)
     /// Authorized with a subscription that plays catalog content.
     case ready
 }
@@ -48,6 +51,9 @@ protocol MusicAccessProviding: Sendable {
     func subscription() async throws -> SubscriptionStatus
     /// Changes to the subscription after the first check.
     func subscriptionUpdates() -> AsyncStream<SubscriptionStatus>
+    /// One small catalog request, to learn whether Apple Music will serve
+    /// this copy at all. Throws `MusicKitSetupError` when it won't.
+    func verifyCatalogAccess() async throws
 }
 
 /// The real thing: MusicKit.
@@ -62,6 +68,16 @@ struct LiveMusicAccess: MusicAccessProviding {
 
     func subscription() async throws -> SubscriptionStatus {
         SubscriptionStatus(try await MusicSubscription.current)
+    }
+
+    func verifyCatalogAccess() async throws {
+        do {
+            let request = MusicCatalogResourceRequest<Genre>(matching: \.id, equalTo: MusicItemID(ComedyFilter.comedyGenreID))
+            _ = try await request.response()
+        } catch {
+            if let setup = MusicKitSetupError(error) { throw setup }
+            throw error
+        }
     }
 
     func subscriptionUpdates() -> AsyncStream<SubscriptionStatus> {
@@ -83,5 +99,19 @@ private extension SubscriptionStatus {
             canPlayCatalogContent: subscription.canPlayCatalogContent,
             canBecomeSubscriber: subscription.canBecomeSubscriber
         )
+    }
+}
+
+extension MusicKitSetupError {
+    /// MusicKit's refusal to mint a developer token, with how this copy is
+    /// signed; nil for any other error.
+    init?(_ error: any Error) {
+        if let token = error as? MusicTokenRequestError, case .developerTokenRequestFailed = token {
+            self.init(signing: .current)
+        } else if error.localizedDescription.localizedCaseInsensitiveContains("developer token") {
+            self.init(signing: .current)
+        } else {
+            return nil
+        }
     }
 }

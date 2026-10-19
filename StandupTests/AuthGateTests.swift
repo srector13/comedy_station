@@ -50,6 +50,21 @@ struct AuthGateTests {
         #expect(!reason.isEmpty)
     }
 
+    @Test func refusedTokenShowsHowThisCopyIsSigned() async {
+        let state = await makeGate(MockMusicAccess(authorization: .authorized, refusesToken: true)).state
+        guard case .misconfigured(let signing) = state else {
+            Issue.record("Expected .misconfigured, got \(state)")
+            return
+        }
+        #expect(signing.contains("A1B2C3D4E5.com.example.resigned"))
+        #expect(signing.contains("68L4YU8U89.PolarReailty.Standup"))
+    }
+
+    @Test func tokenIsOnlyCheckedWithASubscription() async {
+        let access = MockMusicAccess(authorization: .authorized, subscriptionResult: .success(.lapsed), refusesToken: true)
+        #expect(await makeGate(access).state == .noSubscription(canSubscribe: true))
+    }
+
     @Test func continueFromOnboardingReachesReady() async {
         let gate = await makeGate(MockMusicAccess(authorization: .notDetermined, afterRequest: .authorized))
         #expect(gate.state == .needsAuthorization)
@@ -73,6 +88,8 @@ struct AuthGateTests {
         case .noSubscription: #expect(state == .noSubscription(canSubscribe: true))
         case .unavailable:
             if case .unavailable = state {} else { Issue.record("Expected .unavailable, got \(state)") }
+        case .misconfigured:
+            if case .misconfigured = state {} else { Issue.record("Expected .misconfigured, got \(state)") }
         case .ready: #expect(state == .ready)
         }
     }

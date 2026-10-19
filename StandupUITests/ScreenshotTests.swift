@@ -14,6 +14,7 @@ final class ScreenshotTests: StandupUITestCase {
             ("03-restricted", "restricted"),
             ("04-no-subscription", "noSubscription"),
             ("05-unavailable", "unavailable"),
+            ("06-misconfigured", "misconfigured"),
         ]
         for dark in [false, true] {
             for screen in screens {

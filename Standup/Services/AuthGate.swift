@@ -43,6 +43,22 @@ final class AuthGate {
             state = .unavailable(error.localizedDescription)
         }
         observeSubscription()
+        if state == .ready {
+            await verifyCatalogAccess()
+        }
+    }
+
+    /// Catches a copy signed wrong (Apple Music refuses it a token) at launch
+    /// rather than as empty screens. Any other failure (offline) doesn't
+    /// block: the App Library works without the catalog.
+    private func verifyCatalogAccess() async {
+        do {
+            try await access.verifyCatalogAccess()
+        } catch let setup as MusicKitSetupError {
+            state = .misconfigured(setup.signing.summary)
+        } catch {
+            // Offline or a passing error: carry on.
+        }
     }
 
     private func apply(_ subscription: SubscriptionStatus) {

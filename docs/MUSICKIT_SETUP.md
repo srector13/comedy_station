@@ -25,7 +25,23 @@ Both live in `Standup.xcodeproj` (`PRODUCT_BUNDLE_IDENTIFIER`, `DEVELOPMENT_TEAM
 3. Export that certificate from Keychain Access as a `.p12`.
 4. In Feather, import the `.p12` and the `.mobileprovision`, then import the IPA and sign it.
    - **Keep the bundle ID `PolarReailty.Standup`.** Don't let Feather rewrite it.
-   - **Use your own team's certificate.** With a different team's certificate, or a changed bundle ID, authorization still succeeds, but every catalog request fails. The app then shows "Can't Reach Apple Music".
+   - **Use your own team's certificate.** With a different team's certificate, or a changed bundle ID, authorization still succeeds, but Apple refuses the developer token and every catalog request fails. The app then shows "MusicKit Isn't Set Up" with how this copy is signed.
+   - Feather's built-in or shared certificates belong to other teams, so they can't work with MusicKit.
+
+## Troubleshooting: "MusicKit Isn't Set Up" / "Failed to request developer token"
+
+The app checks the catalog right after Apple Music access is granted. If Apple refuses the developer token, the screen shows two lines:
+
+```
+This copy is signed as <TEAM>.<bundle id> (<team name>).
+MusicKit needs 68L4YU8U89.PolarReailty.Standup.
+```
+
+| What the first line shows | Fix |
+|---|---|
+| A team other than `68L4YU8U89` | Re-sign in Feather with your own Apple Development or Distribution `.p12` and a profile from team `68L4YU8U89`. |
+| A bundle ID other than `PolarReailty.Standup` (or a wildcard `*`) | Use an explicit profile for `PolarReailty.Standup` and turn off Feather's bundle ID change. |
+| Exactly `68L4YU8U89.PolarReailty.Standup` | The signing is right. Check that **MusicKit** is ticked under the App ID's **App Services** tab and saved. Then wait a few minutes and tap **Check Again**. |
 
 ## 3. On the device
 

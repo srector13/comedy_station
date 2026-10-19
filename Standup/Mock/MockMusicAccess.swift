@@ -10,11 +10,21 @@ struct MockMusicAccess: MusicAccessProviding {
     /// What the system prompt "returns" when onboarding's Continue is tapped.
     var afterRequest: AuthorizationStatus = .authorized
     var subscriptionResult: Result<SubscriptionStatus, Failure> = .success(.subscribed)
+    /// Whether Apple Music refuses this copy a developer token.
+    var refusesToken = false
 
     func currentAuthorization() -> AuthorizationStatus { authorization }
     func requestAuthorization() async -> AuthorizationStatus { afterRequest }
     func subscription() async throws -> SubscriptionStatus { try subscriptionResult.get() }
     func subscriptionUpdates() -> AsyncStream<SubscriptionStatus> { AsyncStream { $0.finish() } }
+    func verifyCatalogAccess() async throws {
+        if refusesToken {
+            throw MusicKitSetupError(signing: SigningInfo(
+                applicationIdentifier: "A1B2C3D4E5.com.example.resigned", teamID: "A1B2C3D4E5", teamName: "Some Other Team",
+                profileName: "Wildcard", bundleID: "com.example.resigned", expected: "68L4YU8U89.PolarReailty.Standup"
+            ))
+        }
+    }
 }
 
 extension SubscriptionStatus {
@@ -36,6 +46,8 @@ extension MockMusicAccess {
             self.init(authorization: .authorized, subscriptionResult: .success(.lapsed))
         case .unavailable:
             self.init(authorization: .authorized, subscriptionResult: .failure(Failure()))
+        case .misconfigured:
+            self.init(authorization: .authorized, refusesToken: true)
         case .ready:
             self.init(authorization: .authorized)
         }

@@ -142,9 +142,16 @@ actor MusicKitCatalog: CatalogProviding {
         if let hit: Value = cache.value(for: key) {
             return hit
         }
-        let value = try await load()
-        cache.store(value, for: key)
-        return value
+        do {
+            let value = try await load()
+            cache.store(value, for: key)
+            return value
+        } catch {
+            // Say why, and how this copy is signed, rather than MusicKit's
+            // bare "Failed to request developer token".
+            if let setup = MusicKitSetupError(error) { throw setup }
+            throw error
+        }
     }
 }
 

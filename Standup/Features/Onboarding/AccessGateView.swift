@@ -163,6 +163,13 @@ struct GateContent: Equatable {
             message = "Playing full specials needs an active Apple Music subscription."
             primary = canSubscribe ? .subscribe : .checkAgain
             secondary = canSubscribe ? .checkAgain : nil
+        case .misconfigured(let signing):
+            symbol = "exclamationmark.lock.fill"
+            title = "MusicKit Isn't Set Up"
+            message = "Apple Music only serves the catalog to a copy of Standup signed by the team whose App ID has MusicKit turned on, under that App ID's bundle ID."
+            detail = signing
+            primary = .checkAgain
+            footnote = "In Feather, sign with your own Apple Developer certificate and a profile for that App ID, and leave the bundle ID unchanged. See docs/MUSICKIT_SETUP.md."
         case .unavailable(let reason):
             symbol = "wifi.exclamationmark"
             title = "Can't Reach Apple Music"

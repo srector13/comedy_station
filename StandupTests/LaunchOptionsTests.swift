@@ -50,6 +50,14 @@ struct GateContentTests {
         #expect(GateContent(state: .noSubscription(canSubscribe: false)).primary == .checkAgain)
     }
 
+    @Test func misconfiguredShowsTheSigning() {
+        let content = GateContent(state: .misconfigured("This copy is signed as X."))
+        #expect(content.title == "MusicKit Isn't Set Up")
+        #expect(content.detail == "This copy is signed as X.")
+        #expect(content.primary == .checkAgain)
+        #expect(content.footnote?.contains("Feather") == true)
+    }
+
     @Test func unavailableShowsTheReason() {
         let content = GateContent(state: .unavailable("Developer token missing"))
         #expect(content.detail == "Developer token missing")

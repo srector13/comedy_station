@@ -17,7 +17,7 @@ import SwiftUI
 /// Arguments of the form `-Key value` land in UserDefaults' argument domain.
 struct LaunchOptions: Equatable {
     enum AccessScenario: String, CaseIterable {
-        case notDetermined, denied, restricted, noSubscription, unavailable, ready
+        case notDetermined, denied, restricted, noSubscription, unavailable, misconfigured, ready
     }
 
     var useMockData = false
