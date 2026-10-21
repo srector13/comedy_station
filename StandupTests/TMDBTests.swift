@@ -168,7 +168,7 @@ struct DiscoverTests {
         {"results":[
           {"provider_id":15,"provider_name":"Hulu","display_priority":5},
           {"provider_id":1796,"provider_name":"Netflix Standard with Ads","display_priority":20},
-          {"provider_id":8,"provider_name":"Netflix","display_priority":2},
+          {"provider_id":8,"provider_name":"Netflix","display_priority":2,"logo_path":"/netflix.jpg"},
           {"provider_id":1899,"provider_name":"HBO Max","display_priority":4},
           {"provider_id":1825,"provider_name":"HBO Max Amazon Channel","display_priority":40},
           {"provider_id":9,"provider_name":"Amazon Prime Video","display_priority":3},
@@ -178,7 +178,7 @@ struct DiscoverTests {
         """
         let providers = try JSONDecoder().decode(TMDBClient.Page<TMDBClient.WatchProvider>.self, from: Data(json.utf8)).results
         #expect(TMDBClient.streamingServices(from: providers) == [
-            .streaming(id: 8, name: "Netflix"),
+            .streaming(id: 8, name: "Netflix", logoPath: "/netflix.jpg"),
             .streaming(id: 1899, name: "HBO Max"),
             .streaming(id: 9, name: "Amazon Prime Video"),
             .streaming(id: 15, name: "Hulu"),
@@ -186,6 +186,14 @@ struct DiscoverTests {
         // "Max" alone, as it was called for a while.
         #expect(TMDBClient.streamingServices(from: [.init(id: 1899, name: "Max", priority: 1)]) == [.streaming(id: 1899, name: "Max")])
         #expect(TMDBClient.streamingServices(from: [.init(id: 7, name: "Maxdome", priority: 1)]).isEmpty)
+    }
+
+    @Test func aServicesLogoComesFromTMDBsImageServer() {
+        let netflix = BrowseCategory.streaming(id: 8, name: "Netflix", logoPath: "/netflix.jpg")
+        #expect(netflix.logo?.url(side: 154)?.absoluteString == "https://image.tmdb.org/t/p/w154/netflix.jpg")
+        #expect(netflix.id == "streaming-8")
+        #expect(BrowseCategory.streaming(id: 8, name: "Netflix").logo == nil)
+        #expect(BrowseCategory.decade(1990).logo == nil)
     }
 
     @Test func categoriesHaveStableIDsAndTitles() {

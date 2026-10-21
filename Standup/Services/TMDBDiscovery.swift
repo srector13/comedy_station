@@ -105,7 +105,7 @@ actor TMDBDiscovery: TMDBListing {
             var specials: [TMDBSpecial] = []
             for page in 1...2 {
                 switch category {
-                case .streaming(let id, _):
+                case .streaming(let id, _, _):
                     specials += try await client.specials(keyword: keyword, from: nil, to: now, streaming: .init(provider: id, region: region), page: page)
                 case .decade(let start):
                     let (from, to) = Self.window(ofDecade: start, now: now)

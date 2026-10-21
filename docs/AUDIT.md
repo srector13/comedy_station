@@ -56,6 +56,7 @@ Spotify is a second source: alongside Apple Music, or on its own when Spotify is
 ## 4. No Apple logos, wordmark or app icon
 
 - **Bundled images:** the original placeholder icon (a mic on a stand, drawn by `scripts/make_app_icon.py`), in three variants, and TMDB's own logo, which its terms require next to its credit in Settings → About.
+- **Streaming service logos** on Browse load from TMDB's image server at runtime (TMDB has them from JustWatch); none are in the repo. Only the six services Browse picks are shown (Netflix, HBO Max, Prime Video, Hulu, Peacock, Paramount+), so Apple TV's logo never appears. Settings → About credits JustWatch.
 - **SF Symbols:** no `applelogo` or other Apple-branded symbols. The app uses generic ones (`music.mic`, `house.fill`, `play.fill`, …).
 - **"Apple Music" as words:** appears only as plain text naming the service, in onboarding (including the first-launch choice), Settings and error messages. This is the name of the subscription, not the wordmark.
 - **Subscription offer:** the "Try Apple Music" button opens Apple's own `musicSubscriptionOffer` sheet. That sheet is Apple-presented, not app-drawn branding.

@@ -191,6 +191,9 @@ struct SettingsView: View {
                 Text("This product uses the TMDB API but is not endorsed or certified by TMDB.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                Text("Streaming services and their logos: JustWatch, through TMDB.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
             .padding(.vertical, 4)
             .accessibilityElement(children: .combine)

@@ -195,21 +195,22 @@ struct ComedyCharts: Hashable, Sendable {
 /// A Browse list from TMDB: the stand-up specials on a streaming service,
 /// or from a decade, shown as their versions on the service Standup runs on.
 enum BrowseCategory: Hashable, Sendable, Identifiable {
-    /// TMDB's watch provider ID, and the service's name.
-    case streaming(id: Int, name: String)
+    /// TMDB's watch provider ID, the service's name, and its logo's path
+    /// on TMDB's image server.
+    case streaming(id: Int, name: String, logoPath: String? = nil)
     /// The decade's first year (1990 for the 1990s).
     case decade(Int)
 
     var id: String {
         switch self {
-        case .streaming(let id, _): "streaming-\(id)"
+        case .streaming(let id, _, _): "streaming-\(id)"
         case .decade(let start): "decade-\(start)"
         }
     }
 
     var title: String {
         switch self {
-        case .streaming(_, let name): name
+        case .streaming(_, let name, _): name
         case .decade(let start): "The \(start)s"
         }
     }
@@ -219,6 +220,12 @@ enum BrowseCategory: Hashable, Sendable, Identifiable {
 
     var isDecade: Bool {
         if case .decade = self { true } else { false }
+    }
+
+    /// A streaming service's logo, from TMDB (which has it from JustWatch).
+    var logo: ArtworkRef? {
+        guard case .streaming(_, _, let path?) = self else { return nil }
+        return ArtworkRef(template: "https://image.tmdb.org/t/p/w154\(path)", seed: ArtworkRef.seed(for: id))
     }
 }
 

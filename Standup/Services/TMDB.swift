@@ -180,11 +180,14 @@ struct TMDBClient: Sendable {
         var name: String
         /// Lower is more widely used in the region.
         var priority: Int?
+        /// The logo's path on TMDB's image server.
+        var logo: String?
 
         enum CodingKeys: String, CodingKey {
             case id = "provider_id"
             case name = "provider_name"
             case priority = "display_priority"
+            case logo = "logo_path"
         }
     }
 
@@ -212,7 +215,7 @@ struct TMDBClient: Sendable {
                 return picks.contains { $0.count <= 3 ? name == $0 : name.contains($0) }
             }
             guard let match, seen.insert(match.id).inserted else { return nil }
-            return .streaming(id: match.id, name: match.name)
+            return .streaming(id: match.id, name: match.name, logoPath: match.logo)
         }
     }
 

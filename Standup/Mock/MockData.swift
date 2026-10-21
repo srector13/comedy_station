@@ -128,7 +128,7 @@ enum MockData {
                 let year = album.releaseDate.map { Calendar(identifier: .gregorian).component(.year, from: $0) } ?? 0
                 return (start..<start + 10).contains(year)
             }
-        case .streaming(let id, _):
+        case .streaming(let id, _, _):
             let share = streamingServices.firstIndex { $0.id == "streaming-\(id)" } ?? 0
             return newestFirst.enumerated().filter { $0.offset % streamingServices.count == share }.map(\.element)
         }

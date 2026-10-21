@@ -41,17 +41,13 @@ struct BrowseCategoryView: View {
                 .accessibilityIdentifier("category.empty")
         case .loaded(let albums):
             List {
-                Section {
-                    ForEach(albums) { album in
-                        NavigationLink(value: Route.album(album)) {
-                            SpecialRow(album: album)
-                        }
-                        .accessibilityIdentifier("category.album.\(album.id)")
-                        .libraryContextMenu(.special(album))
-                        .librarySwipeActions(.special(album))
+                ForEach(albums) { album in
+                    NavigationLink(value: Route.album(album)) {
+                        SpecialRow(album: album)
                     }
-                } footer: {
-                    Text(footnote)
+                    .accessibilityIdentifier("category.album.\(album.id)")
+                    .libraryContextMenu(.special(album))
+                    .librarySwipeActions(.special(album))
                 }
             }
             .listStyle(.plain)
@@ -59,17 +55,10 @@ struct BrowseCategoryView: View {
         }
     }
 
-    private var footnote: String {
-        switch category {
-        case .streaming(_, let name): "Stand-up on \(name), as TMDB lists it, that's also on \(provider.name). Most popular first."
-        case .decade(let start): "Stand-up from the \(start)s, as TMDB lists it, that's on \(provider.name). Best known first."
-        }
-    }
-
     private var emptyMessage: String {
         switch category {
-        case .streaming(_, let name): "None of the stand-up TMDB lists on \(name) turned up on \(provider.name)."
-        case .decade(let start): "None of TMDB's stand-up from the \(start)s turned up on \(provider.name)."
+        case .streaming(_, let name, _): "No stand-up from \(name) turned up on \(provider.name) yet."
+        case .decade(let start): "No stand-up from the \(start)s turned up on \(provider.name) yet."
         }
     }
 

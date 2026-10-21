@@ -85,12 +85,31 @@ struct BrowseView: View {
             let services = list.filter { !$0.isDecade }
             let decades = list.filter(\.isDecade)
             if !services.isEmpty {
-                categoryGrid("Streaming Services", services, id: "browse.services")
+                serviceGrid(services)
             }
             if !decades.isEmpty {
                 categoryGrid("Decades", decades, id: "browse.decades")
             }
         }
+    }
+
+    /// The services' logos, app-icon style.
+    private func serviceGrid(_ services: [BrowseCategory]) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ShelfHeader(title: "Streaming Services")
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 92, maximum: 140), spacing: 16)], spacing: 18) {
+                ForEach(services) { service in
+                    NavigationLink(value: Route.category(service)) {
+                        ServiceTile(service: service)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("browse.category.\(service.id)")
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("browse.services")
     }
 
     private func categoryGrid(_ title: String, _ items: [BrowseCategory], id: String) -> some View {
@@ -199,6 +218,35 @@ struct BrowseView: View {
                 charts = .failed(error.localizedDescription)
             }
         }
+    }
+}
+
+/// A streaming service's tile: its logo, as on a Home Screen, over its
+/// name. The logo comes from TMDB; without one (offline, mock mode) its
+/// initials stand in.
+struct ServiceTile: View {
+    let service: BrowseCategory
+
+    var body: some View {
+        VStack(spacing: 8) {
+            ArtworkView(service.logo ?? ArtworkRef(seed: ArtworkRef.seed(for: service.id)), placeholder: .monogram(service.title), pixels: 154)
+                .clipShape(.rect(cornerRadius: 20))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 20)
+                        .strokeBorder(.quaternary, lineWidth: 0.5)
+                }
+                .shadow(color: .black.opacity(0.12), radius: 6, y: 3)
+            Text(service.title)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.primary)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .contentShape(.rect)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(service.title)
+        .accessibilityAddTraits(.isButton)
     }
 }
 

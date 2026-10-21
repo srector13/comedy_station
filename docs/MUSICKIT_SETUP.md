@@ -84,7 +84,7 @@ Each special is shown and played as its Apple Music album: same comedian (search
 3. Copy the **API Key**. The longer **API Read Access Token** works too.
 4. In Standup, tap the gear on Home, Browse or Library. Paste the key and tap **Save Key**. Standup checks it with TMDB before keeping it.
 
-The key lives in your keychain and reaches your other devices through iCloud Keychain. It's never built into the app, because the release IPAs are public. TMDB's terms ask for its logo and notice, which are in Settings → About.
+The key lives in your keychain and reaches your other devices through iCloud Keychain. It's never built into the app, because the release IPAs are public. TMDB's terms ask for its logo and notice, and for credit to JustWatch, where its streaming data and the services' logos come from. All three are in Settings → About.
 
 ## 5. Spotify (optional)
 
