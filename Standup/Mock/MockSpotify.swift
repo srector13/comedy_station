@@ -1,17 +1,20 @@
 import Foundation
 
-/// Spotify's side of mock mode: a comedian with two specials, and a pop
-/// act the comedy filter keeps out. IDs are Spotify URIs, as live.
+/// Spotify's side of mock mode: two comedians with two specials each, and a
+/// pop act the comedy filter keeps out. IDs are Spotify URIs, as live.
 enum MockSpotify {
     static let comedians = [
         ComedyArtist(id: "spotify:artist:mock-lena", name: "Lena Brooks", artwork: ArtworkRef(generatedFor: "spotify:artist:mock-lena"), genreNames: ["comedy", "stand-up comedy"]),
         ComedyArtist(id: "spotify:artist:mock-dj", name: "DJ Nightlife", artwork: ArtworkRef(generatedFor: "spotify:artist:mock-dj"), genreNames: ["dance pop"]),
+        ComedyArtist(id: "spotify:artist:mock-theo", name: "Theo Park", artwork: ArtworkRef(generatedFor: "spotify:artist:mock-theo"), genreNames: ["comedy"]),
     ]
 
     static let albums = [
         album("small-talk", "Small Talk Champion", by: comedians[0], released: "2025-09-12", bits: ["Intro", "Elevator Etiquette", "The Group Text", "Hotel Breakfast", "My Dentist Is a Comedian", "Goodnight"]),
         album("overbooked", "Overbooked", by: comedians[0], released: "2023-04-21", bits: ["Gate Change", "Middle Seat", "Lost Luggage", "Customs", "Home"]),
         album("party-mix", "Party Mix", by: comedians[1], released: "2025-01-01", bits: ["Lights Up", "All Night"]),
+        album("late-checkout", "Late Checkout", by: comedians[2], released: "2024-11-08", bits: ["Do Not Disturb", "Ice Machine", "Minibar Math", "Checkout Time"]),
+        album("group-project", "Group Project", by: comedians[2], released: "2022-06-03", bits: ["Roll Call", "The Slacker", "Presentation Day"]),
     ]
 
     static func tracks(of albumID: String) -> [ComedyTrack] {
@@ -82,6 +85,19 @@ struct MockSpotifyCatalog: CatalogProviding {
 
     func charts() async throws -> ComedyCharts {
         ComedyCharts()
+    }
+
+    /// Home's shelves for the Spotify route, as if TMDB had named these.
+    func discover(_ shelf: DiscoverShelf) async throws -> [ComedyAlbum] {
+        let specials = ComedyFilter.keep(MockSpotify.albums.map(\.album))
+        return switch shelf {
+        case .new, .popular: specials.sorted { ($0.releaseDate ?? .distantPast) > ($1.releaseDate ?? .distantPast) }
+        case .essential: specials.sorted { ($0.releaseDate ?? .distantPast) < ($1.releaseDate ?? .distantPast) }
+        }
+    }
+
+    func trendingComedians() async throws -> [ComedyArtist] {
+        ComedyFilter.keep(MockSpotify.comedians)
     }
 
     func playlist(id: String) async throws -> PlaylistDetail {

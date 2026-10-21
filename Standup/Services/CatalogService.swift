@@ -14,6 +14,10 @@ protocol CatalogProviding: Sendable {
     /// The comedians behind TMDB's new and popular specials; empty without
     /// a TMDB key.
     func trendingComedians() async throws -> [ComedyArtist]
+    /// Home's TMDB shelves and comedians as one service's versions (the
+    /// service picked on first launch).
+    func discover(_ shelf: DiscoverShelf, in provider: Provider) async throws -> [ComedyAlbum]
+    func trendingComedians(in provider: Provider) async throws -> [ComedyArtist]
     func album(id: String) async throws -> AlbumDetail
     func artist(id: String) async throws -> ArtistDetail
     /// Just the comedian (name, artwork, genres), without their page.
@@ -33,7 +37,7 @@ extension CatalogProviding {
         try await search(term)
     }
 
-    /// Only the Apple Music catalog knows TMDB.
+    /// A catalog without TMDB has no shelves.
     func discover(_ shelf: DiscoverShelf) async throws -> [ComedyAlbum] {
         []
     }
@@ -41,11 +45,19 @@ extension CatalogProviding {
     func trendingComedians() async throws -> [ComedyArtist] {
         []
     }
+
+    func discover(_ shelf: DiscoverShelf, in provider: Provider) async throws -> [ComedyAlbum] {
+        try await discover(shelf)
+    }
+
+    func trendingComedians(in provider: Provider) async throws -> [ComedyArtist] {
+        try await trendingComedians()
+    }
 }
 
 /// Sends each request to the service its item comes from: Spotify URIs to
-/// Spotify, everything else to Apple Music, which also keeps Home, Browse
-/// and playlists.
+/// Spotify, everything else to Apple Music, which also keeps Browse and
+/// playlists. Search and Home's shelves go to the service asked for.
 struct RoutingCatalog: CatalogProviding {
     let appleMusic: any CatalogProviding
     let spotify: any CatalogProviding
@@ -96,6 +108,14 @@ struct RoutingCatalog: CatalogProviding {
 
     func trendingComedians() async throws -> [ComedyArtist] {
         try await appleMusic.trendingComedians()
+    }
+
+    func discover(_ shelf: DiscoverShelf, in provider: Provider) async throws -> [ComedyAlbum] {
+        try await catalog(for: provider).discover(shelf)
+    }
+
+    func trendingComedians(in provider: Provider) async throws -> [ComedyArtist] {
+        try await catalog(for: provider).trendingComedians()
     }
 
     func playlist(id: String) async throws -> PlaylistDetail {

@@ -11,11 +11,18 @@ final class SpotifyUITests: StandupUITestCase {
         require(gear, in: app, timeout: 15, "no Settings button")
         gear.tap()
         let field = element("settings.spotifyClientID", in: app)
+        // Below the Service and TMDB sections.
+        for _ in 0..<2 where !field.waitForExistence(timeout: 3) {
+            app.swipeUp()
+        }
         require(field, in: app, timeout: 5, "no Spotify Client ID field")
         field.tap()
         field.typeText("mock-client-id")
         element("settings.spotifySaveClientID", in: app).tap()
         let connect = element("settings.spotifyConnect", in: app)
+        for _ in 0..<2 where !connect.waitForExistence(timeout: 2) {
+            app.swipeUp()
+        }
         require(connect, in: app, timeout: 5, "no Connect Spotify")
         snap("82-settings-spotify", dark: false)
         connect.tap()

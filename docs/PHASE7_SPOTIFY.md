@@ -1,6 +1,8 @@
 # Phase 7 plan: Spotify as a second provider
 
-**Status:** built. CI covers it in mock mode, and it still needs a real-device test (DEVICE_TEST.md, steps 11 to 16).
+**Status:** built. CI covers it in mock mode, and it still needs a real-device test (DEVICE_TEST.md, steps 0 and 11 to 16).
+
+**Since then:** first launch asks Apple Music or Spotify. The Spotify route runs without Apple Music: Home's TMDB shelves are matched to Spotify, Browse is hidden, and comedians Spotify lists without genres are confirmed through iTunes Search instead of Apple Music.
 
 Decisions taken, since the open questions below went unanswered:
 - **Search:** a switch (Apple Music | Spotify).

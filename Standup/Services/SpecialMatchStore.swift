@@ -1,6 +1,6 @@
 import Foundation
 
-/// TMDB specials already matched to their Apple Music albums, or found to
+/// TMDB specials already matched to their albums on a service, or found to
 /// have none, kept between launches so Home fills in quickly. A match is
 /// trusted for a month; a miss is tried again after a few days, since the
 /// audio often comes out after the video.
@@ -17,6 +17,12 @@ struct SpecialMatchStore: Sendable {
     static var defaultURL: URL? {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
             .appendingPathComponent("TMDBMatches-v1.json")
+    }
+
+    /// The Spotify route's matches, kept apart from Apple Music's.
+    static var spotifyURL: URL? {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("TMDBMatches-spotify-v1.json")
     }
 
     let url: URL?

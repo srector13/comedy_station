@@ -8,18 +8,22 @@ enum AppTab: String, Hashable, CaseIterable, Sendable {
 /// Liquid Glass bar, minimize-on-scroll, and the sidebar on iPad. Search is
 /// a `.search`-role tab with `.searchable` on the tab view itself, which is
 /// what sets it apart at the trailing end of the bar. The mini-player rides
-/// above the tabs as the bar's bottom accessory.
+/// above the tabs as the bar's bottom accessory, once something is loaded.
+/// On the Spotify route there's no Browse: Spotify has no comedy charts or
+/// playlists for an app like this.
 struct MainTabView: View {
     @State private var selection: AppTab
     @State private var search: SearchModel
     @Namespace private var nowPlayingNamespace
     @Environment(PlayerService.self) private var player
     private let initialRoute: Route?
+    private let provider: Provider
 
-    init(catalog: any CatalogProviding, initialTab: AppTab = .home, initialQuery: String = "", initialRoute: Route? = nil) {
-        _selection = State(initialValue: initialTab)
-        _search = State(initialValue: SearchModel(catalog: catalog, query: initialQuery))
+    init(catalog: any CatalogProviding, initialTab: AppTab = .home, initialQuery: String = "", initialRoute: Route? = nil, provider: Provider = .appleMusic) {
+        _selection = State(initialValue: provider == .spotify && initialTab == .browse ? .home : initialTab)
+        _search = State(initialValue: SearchModel(catalog: catalog, query: initialQuery, provider: provider))
         self.initialRoute = initialRoute
+        self.provider = provider
     }
 
     var body: some View {
@@ -28,8 +32,10 @@ struct MainTabView: View {
             Tab("Home", systemImage: "house.fill", value: AppTab.home) {
                 HomeView(initialPath: initialRoute.map { [$0] } ?? [])
             }
-            Tab("Browse", systemImage: "square.grid.2x2.fill", value: AppTab.browse) {
-                BrowseView()
+            if provider == .appleMusic {
+                Tab("Browse", systemImage: "square.grid.2x2.fill", value: AppTab.browse) {
+                    BrowseView()
+                }
             }
             Tab("Library", systemImage: "square.stack.fill", value: AppTab.library) {
                 LibraryView()
@@ -40,7 +46,8 @@ struct MainTabView: View {
         }
         .tabViewStyle(.sidebarAdaptable)
         .tabBarMinimizeBehavior(.onScrollDown)
-        .tabViewBottomAccessory {
+        // Only once something is playing or paused: nothing to show before.
+        .tabViewBottomAccessory(isEnabled: player.session != nil) {
             MiniPlayerView(namespace: nowPlayingNamespace)
         }
         .sheet(isPresented: $player.showsNowPlaying) {

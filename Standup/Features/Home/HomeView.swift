@@ -4,8 +4,9 @@ import SwiftUI
 /// Home, Music style, from the top:
 /// - Continue Listening: specials left partway, newest first, each with its
 ///   progress ring.
-/// - New Specials and Popular Specials: from TMDB, as their Apple Music
-///   albums, or from Apple's Comedy chart without a TMDB key.
+/// - New Specials and Popular Specials: from TMDB, as their albums on the
+///   service Standup runs on. On Apple Music, Apple's Comedy chart fills
+///   in without a TMDB key; Spotify has no chart, so Home asks for a key.
 /// - Trending Comedians: the comedians behind TMDB's new and popular
 ///   specials.
 /// - More from …: other specials by comedians in the App Library.
@@ -32,6 +33,7 @@ struct HomeView: View {
     @Environment(\.play) private var play
     @Environment(LibraryStore.self) private var library
     @Environment(SpecialsSettings.self) private var specials
+    @Environment(ServiceChoice.self) private var service
 
     @Query(filter: #Predicate<PlaybackProgress> { $0.isAlbum && !$0.finished }, sort: \PlaybackProgress.lastPlayed, order: .reverse)
     private var inProgress: [PlaybackProgress]
@@ -40,6 +42,16 @@ struct HomeView: View {
 
     init(initialPath: [Route] = []) {
         _path = State(initialValue: initialPath)
+    }
+
+    private var provider: Provider {
+        service.provider ?? .appleMusic
+    }
+
+    /// The Spotify route found nothing for Home: no TMDB key, or nothing
+    /// TMDB named is on Spotify.
+    private var spotifyHasNothing: Bool {
+        provider == .spotify && shelvesLoaded && trending.isEmpty && shelves.values.allSatisfy(\.isEmpty)
     }
 
     /// TMDB's new specials, or else the chart's recent ones.
@@ -95,6 +107,9 @@ struct HomeView: View {
                     if case .failed(let message) = charts, newSpecials.isEmpty, popular == nil {
                         chartsUnavailable(message)
                     }
+                    if spotifyHasNothing {
+                        spotifyNeedsSpecials
+                    }
                 }
                 .padding(.vertical, 12)
             }
@@ -104,7 +119,7 @@ struct HomeView: View {
             // Again when the TMDB key changes in Settings.
             .task(id: specials.revision) { await loadSpecials() }
             .task(id: specials.revision) { await loadTrending() }
-            .task(id: savedComedians.prefix(3).map(\.artistID)) { await loadMoreFrom() }
+            .task(id: moreFromComedians.map(\.artistID)) { await loadMoreFrom() }
             .refreshable {
                 await loadSpecials()
                 await loadTrending()
@@ -188,6 +203,25 @@ struct HomeView: View {
         .accessibilityIdentifier("home.trending")
     }
 
+    private var spotifyNeedsSpecials: some View {
+        Group {
+            if specials.hasKey {
+                ContentUnavailableView(
+                    "No Specials Matched",
+                    systemImage: "magnifyingglass",
+                    description: Text("None of TMDB's new or popular specials turned up on Spotify. Pull to refresh, or search.")
+                )
+            } else {
+                ContentUnavailableView(
+                    "Add a TMDB Key",
+                    systemImage: "sparkles.tv",
+                    description: Text("Home's new, popular and essential specials come from TMDB. Add your free TMDB key in Settings (the gear above), and Home shows the ones on Spotify.")
+                )
+            }
+        }
+        .accessibilityIdentifier("home.spotifyEmpty")
+    }
+
     private func chartsUnavailable(_ message: String) -> some View {
         ContentUnavailableView {
             Label("Can't Load the Charts", systemImage: "wifi.exclamationmark")
@@ -203,20 +237,21 @@ struct HomeView: View {
 
     // MARK: Loading
 
-    /// TMDB's shelves, each shown as it arrives; Apple's chart only when
-    /// TMDB leaves New or Popular short (no key, or nothing matched).
+    /// TMDB's shelves, each shown as it arrives; on Apple Music, Apple's
+    /// chart when TMDB leaves New or Popular short (no key, or nothing
+    /// matched).
     private func loadSpecials() async {
-        let catalog = self.catalog
+        let catalog = self.catalog, provider = self.provider
         await withTaskGroup(of: (DiscoverShelf, [ComedyAlbum]).self) { group in
             for shelf in DiscoverShelf.allCases {
-                group.addTask { (shelf, (try? await catalog.discover(shelf)) ?? []) }
+                group.addTask { (shelf, (try? await catalog.discover(shelf, in: provider)) ?? []) }
             }
             for await (shelf, albums) in group {
                 shelves[shelf] = albums
             }
         }
         shelvesLoaded = true
-        guard (shelves[.new] ?? []).isEmpty || popular == nil else { return }
+        guard provider == .appleMusic, (shelves[.new] ?? []).isEmpty || popular == nil else { return }
         do {
             charts = .loaded(try await catalog.charts())
         } catch {
@@ -227,14 +262,19 @@ struct HomeView: View {
     }
 
     private func loadTrending() async {
-        trending = (try? await catalog.trendingComedians()) ?? []
+        trending = (try? await catalog.trendingComedians(in: provider)) ?? []
     }
 
-    /// The three comedians added to the App Library most recently, with
-    /// their specials.
+    /// The three comedians from this service added to the App Library most
+    /// recently.
+    private var moreFromComedians: [SavedComedian] {
+        Array(savedComedians.filter { Provider.of($0.artistID) == provider }.prefix(3))
+    }
+
+    /// `moreFromComedians`, with their specials.
     private func loadMoreFrom() async {
         var found: [MoreFrom] = []
-        for saved in savedComedians.prefix(3) {
+        for saved in moreFromComedians {
             let comedian = saved.comedian
             if let detail = try? await catalog.artist(id: comedian.id) {
                 found.append(MoreFrom(comedian: comedian, specials: detail.specials))

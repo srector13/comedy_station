@@ -2,11 +2,13 @@ import MusicKit
 import SwiftUI
 import UIKit
 
-/// Onboarding, and the screens shown while Apple Music can't be used.
+/// The Apple Music route's screens while Apple Music can't be used, each
+/// with a way over to Spotify instead.
 struct AccessGateView: View {
     let state: AccessState
 
     @Environment(AuthGate.self) private var gate
+    @Environment(ServiceChoice.self) private var service
     @Environment(\.openURL) private var openURL
     @State private var showsSubscriptionOffer = false
     @State private var isWorking = false
@@ -78,6 +80,13 @@ struct AccessGateView: View {
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                     }
+
+                    Button("Use Spotify Instead") {
+                        service.choose(.spotify)
+                    }
+                    .font(.subheadline)
+                    .disabled(isWorking)
+                    .accessibilityIdentifier("gate.useSpotify")
                 }
                 .frame(maxWidth: 520)
                 .padding(.horizontal, 28)
@@ -184,17 +193,20 @@ struct GateContent: Equatable {
 #Preview("Onboarding") {
     AccessGateView(state: .needsAuthorization)
         .environment(AuthGate(access: MockMusicAccess(scenario: .notDetermined)))
+        .environment(ServiceChoice(defaults: nil, initial: .appleMusic))
         .tint(Theme.accent)
 }
 
 #Preview("Denied") {
     AccessGateView(state: .denied)
         .environment(AuthGate(access: MockMusicAccess(scenario: .denied)))
+        .environment(ServiceChoice(defaults: nil, initial: .appleMusic))
         .tint(Theme.accent)
 }
 
 #Preview("No subscription") {
     AccessGateView(state: .noSubscription(canSubscribe: true))
         .environment(AuthGate(access: MockMusicAccess(scenario: .noSubscription)))
+        .environment(ServiceChoice(defaults: nil, initial: .appleMusic))
         .tint(Theme.accent)
 }

@@ -83,7 +83,12 @@ The key lives in your keychain and reaches your other devices through iCloud Key
 
 ## 5. Spotify (optional)
 
-With Spotify connected, Search gets an Apple Music | Spotify switch, and Spotify specials and comedians open, save to the App Library, and play. Playback happens in the Spotify app, so it needs Spotify **Premium** and the Spotify app installed.
+Standup asks on first launch whether to run on **Apple Music** or **Spotify** (Settings → Service switches later).
+
+- **On Spotify**, Standup never asks for Apple Music: Search, Home's TMDB shelves, the App Library and playback are all Spotify's, and there's no Browse tab (Spotify gives apps in Development Mode no charts or playlists). Without a TMDB key, Home has only what you've saved.
+- **On Apple Music**, connecting Spotify in Settings adds an Apple Music | Spotify switch to Search.
+
+Either way, Spotify specials and comedians open, save to the App Library, and play. Playback happens in the Spotify app, so it needs Spotify **Premium** and the Spotify app installed.
 
 1. At [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard), **Create app** (Spotify requires the app owner to have Premium):
    - **Name:** `Standup`.
@@ -92,7 +97,7 @@ With Spotify connected, Search gets an Apple Music | Spotify switch, and Spotify
    - **iOS bundle ID:** `PolarReality.Standup`.
 2. Under **User Management**, add the Spotify account(s) that will use Standup (Development Mode allows 5).
 3. Copy the app's **Client ID**. No secret is needed: Standup signs in with PKCE.
-4. In Standup, open Settings (the gear) → Spotify. Paste the Client ID and tap **Save Client ID**, then **Connect Spotify** and sign in.
+4. In Standup, paste the Client ID: on the Spotify setup screen (the Spotify route; tap **Continue**), or in Settings (the gear) → Spotify (tap **Save Client ID**). Then tap **Connect Spotify** and sign in.
 
 The Client ID is kept in your keychain and syncs to your other devices. Each device signs in to Spotify on its own.
 

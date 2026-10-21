@@ -14,6 +14,8 @@ final class AppEnvironment {
     let player: PlayerService
     let specials: SpecialsSettings
     let spotify: SpotifyAccount
+    /// Apple Music or Spotify, picked on first launch.
+    let service: ServiceChoice
     /// Live only: takes the Spotify app's call back after waking it.
     let spotifyEngine: SpotifyPlaybackEngine?
 
@@ -27,6 +29,7 @@ final class AppEnvironment {
                 spotify.connectMock()
             }
             self.spotify = spotify
+            service = ServiceChoice(defaults: nil, initial: options.service)
             catalog = RoutingCatalog(appleMusic: MockCatalog(), spotify: MockSpotifyCatalog())
             library = .inMemory(seeded: options.seedLibrary, catalog: catalog)
             engine = MockPlaybackEngine()
@@ -36,9 +39,14 @@ final class AppEnvironment {
             authGate = AuthGate(access: LiveMusicAccess())
             let spotify = SpotifyAccount(clientIDs: KeychainKeyStore.spotifyClientID, tokens: KeychainKeyStore.spotifyTokens)
             self.spotify = spotify
-            let appleMusic = MusicKitCatalog(tmdbKeys: KeychainKeyStore.tmdb)
+            service = ServiceChoice(defaults: .standard)
+            // One TMDB source for both services, so the lists load once.
+            let tmdb = TMDBDiscovery(keys: KeychainKeyStore.tmdb)
+            let appleMusic = MusicKitCatalog(tmdb: tmdb)
             let spotifyAPI = SpotifyWebAPI(token: { try await spotify.validToken() })
-            catalog = RoutingCatalog(appleMusic: appleMusic, spotify: SpotifyCatalog(api: spotifyAPI, appleMusic: appleMusic))
+            // Spotify's comedians are confirmed through iTunes Search, which
+            // needs no Apple Music sign-in, so the Spotify route works alone.
+            catalog = RoutingCatalog(appleMusic: appleMusic, spotify: SpotifyCatalog(api: spotifyAPI, confirming: ITunesComedianCheck(), tmdb: tmdb))
             library = .onDisk(catalog: catalog)
             let spotifyEngine = SpotifyPlaybackEngine(account: spotify)
             self.spotifyEngine = spotifyEngine

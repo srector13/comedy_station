@@ -2,18 +2,30 @@ import Foundation
 
 /// Spotify's catalog as the app sees it: comedy only (rule 3). Spotify puts
 /// genres on artists, not albums or tracks, so a special or bit counts when
-/// its comedian does: by their Spotify genres, or, when Spotify lists none
-/// (it has been returning fewer), by a comedian of the same name on Apple
-/// Music. Anything unconfirmed is left out.
+/// its comedian does: by their Spotify genres, or, when Spotify lists none,
+/// by `confirming` (iTunes Search in the app). Anything unconfirmed is left
+/// out.
+///
+/// For the Spotify route, Home's TMDB shelves are matched to Spotify here,
+/// as `MusicKitCatalog` matches them to Apple Music.
 actor SpotifyCatalog: CatalogProviding {
     private let api: SpotifyWebAPI
     /// Confirms comedians Spotify has no genres for.
-    private let appleMusic: any CatalogProviding
+    private let confirming: any ComedianConfirming
+    private let tmdb: (any TMDBListing)?
     private var cache = ResponseCache(lifetime: 10 * 60)
+    /// TMDB specials already matched to Spotify, kept between launches.
+    private var matches: SpecialMatchStore
 
-    init(api: SpotifyWebAPI, appleMusic: any CatalogProviding) {
+    /// How many of a shelf's TMDB specials are looked for on Spotify,
+    /// which limits how fast an app in Development Mode may ask.
+    static let shelfLimit = 30
+
+    init(api: SpotifyWebAPI, confirming: any ComedianConfirming, tmdb: (any TMDBListing)? = nil, matchesURL: URL? = SpecialMatchStore.spotifyURL) {
         self.api = api
-        self.appleMusic = appleMusic
+        self.confirming = confirming
+        self.tmdb = tmdb
+        matches = SpecialMatchStore(url: matchesURL)
     }
 
     // MARK: Search
@@ -97,10 +109,77 @@ actor SpotifyCatalog: CatalogProviding {
         }
     }
 
-    /// Home and Browse stay Apple Music's (and TMDB's): Spotify's
-    /// Development Mode has no charts or browse categories.
+    /// Spotify's Development Mode has no charts or browse categories, so
+    /// Browse stays Apple Music's.
     func charts() async throws -> ComedyCharts {
         ComedyCharts()
+    }
+
+    // MARK: Home
+
+    /// A Home shelf: TMDB's specials for it, each as its Spotify album.
+    /// Specials without one are left out.
+    func discover(_ shelf: DiscoverShelf) async throws -> [ComedyAlbum] {
+        guard let tmdb, let key = tmdb.key else { return [] }
+        return try await cached("discover:\(shelf.rawValue):\(key)") {
+            let specials = Array(try await tmdb.specials(for: shelf).prefix(Self.shelfLimit))
+            var albums = await inOrder(specials, width: 3) { [self] special in
+                await spotifyVersion(of: special, tmdb: tmdb)
+            }
+            var seen = Set<String>()
+            albums = albums.filter { seen.insert($0.id).inserted }
+            if shelf == .new {
+                albums.sort { ($0.releaseDate ?? .distantPast) > ($1.releaseDate ?? .distantPast) }
+            }
+            matches.save()
+            return albums
+        }
+    }
+
+    /// The comedians behind TMDB's new and popular specials, as Spotify
+    /// artists.
+    func trendingComedians() async throws -> [ComedyArtist] {
+        guard let tmdb, let key = tmdb.key else { return [] }
+        return try await cached("discover:comedians:\(key)") {
+            let names = await tmdb.trendingNames()
+            var ids = Set<String>()
+            let comedians = await inOrder(names, width: 3) { [self] name in await spotifyComedian(named: name) }
+            return Array(comedians.filter { ids.insert($0.id).inserted }.prefix(15))
+        }
+    }
+
+    /// A special's Spotify album: searched by comedian and title, matched
+    /// by `SpecialMatcher`, then through the comedy check. Answers are
+    /// remembered, except when Spotify couldn't be asked or the comedian
+    /// couldn't be confirmed.
+    private func spotifyVersion(of special: TMDBSpecial, tmdb: any TMDBListing) async -> ComedyAlbum? {
+        if let known = matches.lookup(special.id) {
+            return known
+        }
+        guard let comedian = await tmdb.comedianName(of: special) else { return nil }
+        let title = special.titleParts?.title ?? special.title
+        guard let response = try? await api.search("\(comedian) \(title)", types: "album") else { return nil }
+        let found = response.albums?.items ?? []
+        let candidates = found.map { ComedyAlbum(spotify: $0, genreNames: []) }
+        guard var match = SpecialMatcher.best(comedian: comedian, title: title, released: special.releaseDate, in: candidates) else {
+            matches.record(nil, for: special.id)
+            return nil
+        }
+        let artist = found.first { $0.uri == match.id }?.artists.first
+        guard let genres = await comedyGenres(ofArtist: artist) else { return nil }
+        match.genreNames = genres
+        matches.record(match, for: special.id)
+        return match
+    }
+
+    /// The Spotify artist with exactly this name, if a comedian.
+    private func spotifyComedian(named name: String) async -> ComedyArtist? {
+        guard let response = try? await api.search(name, types: "artist") else { return nil }
+        let target = SpecialMatcher.normalized(name)
+        guard let artist = response.artists?.items.first(where: { SpecialMatcher.normalized($0.name) == target }),
+              let genres = await comedyGenres(of: artist)
+        else { return nil }
+        return ComedyArtist(spotify: artist, genreNames: genres)
     }
 
     func playlist(id: String) async throws -> PlaylistDetail {
@@ -116,7 +195,7 @@ actor SpotifyCatalog: CatalogProviding {
         if !genres.isEmpty {
             return ComedyFilter.isComedy(genres) ? genres : nil
         }
-        return await isComedianOnAppleMusic(artist.name) ? ["Comedy"] : nil
+        return await isConfirmedComedian(artist.name) ? ["Comedy"] : nil
     }
 
     private func comedyGenres(ofArtist artist: SpotifyWebAPI.SimpleArtist?) async -> [String]? {
@@ -131,15 +210,14 @@ actor SpotifyCatalog: CatalogProviding {
         return genres
     }
 
-    /// Whether Apple Music has a comedian of this name.
-    private func isComedianOnAppleMusic(_ name: String) async -> Bool {
-        let key = "apple-comedian:\(name.lowercased())"
+    /// Whether `confirming` knows a comedian of this name. Only answers
+    /// are kept, so one it couldn't give is asked for again.
+    private func isConfirmedComedian(_ name: String) async -> Bool {
+        let key = "confirmed:\(SpecialMatcher.normalized(name))"
         if let known: Bool = cache.value(for: key) {
             return known
         }
-        let found = (try? await appleMusic.search(name))?.comedians ?? []
-        let target = SpecialMatcher.normalized(name)
-        let isComedian = found.contains { SpecialMatcher.normalized($0.name) == target }
+        guard let isComedian = await confirming.isComedian(named: name) else { return false }
         cache.store(isComedian, for: key)
         return isComedian
     }

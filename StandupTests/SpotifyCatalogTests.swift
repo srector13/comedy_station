@@ -53,12 +53,12 @@ struct SpotifyCatalogTests {
         })
     }
 
-    let catalog = SpotifyCatalog(api: Self.api(), appleMusic: MockCatalog())
+    let catalog = SpotifyCatalog(api: Self.api(), confirming: CatalogComedianCheck(catalog: MockCatalog()), matchesURL: nil)
 
     @Test func searchKeepsOnlyComedians() async throws {
         let found = try await catalog.search("comedy")
         // Taylor by her Spotify genres; Maya, who has none on Spotify, by
-        // Apple Music; not the pop star, and not someone unconfirmed.
+        // the comedian check; not the pop star, and not someone unconfirmed.
         #expect(found.comedians.map(\.name) == ["Taylor Tomlinson", "Maya Okafor"])
         #expect(found.specials.map(\.id) == ["spotify:album:haveitall"])
         #expect(found.bits.map(\.id) == ["spotify:track:dating"])
@@ -108,10 +108,126 @@ struct SpotifyCatalogTests {
     }
 }
 
+/// TMDB lists for the Spotify route's Home, without the network.
+struct FakeTMDB: TMDBListing {
+    var key: String? = "key"
+    var lists: [DiscoverShelf: [TMDBSpecial]] = [:]
+    var names: [String] = []
+
+    func specials(for shelf: DiscoverShelf) async throws -> [TMDBSpecial] {
+        lists[shelf] ?? []
+    }
+
+    func comedianName(of special: TMDBSpecial) async -> String? {
+        special.titleParts?.comedian
+    }
+
+    func trendingNames() async -> [String] {
+        names
+    }
+}
+
+/// Home's TMDB shelves matched to Spotify, through the same comedy check.
+struct SpotifyHomeTests {
+    static let tmdb = FakeTMDB(
+        lists: [.new: [
+            TMDBSpecial(id: 1, title: "Taylor Tomlinson: Have It All", releaseDate: TMDBClient.day(from: "2024-02-13"), popularity: 50),
+            TMDBSpecial(id: 2, title: "Pop Star: Club Hits", releaseDate: nil, popularity: 40),
+            TMDBSpecial(id: 3, title: "Someone: Not on Spotify", releaseDate: nil, popularity: 30),
+        ]],
+        names: ["Taylor Tomlinson", "Pop Star", "Maya Okafor", "Nobody Known"]
+    )
+
+    private func catalog(tmdb: FakeTMDB = Self.tmdb) -> SpotifyCatalog {
+        SpotifyCatalog(api: SpotifyCatalogTests.api(), confirming: CatalogComedianCheck(catalog: MockCatalog()), tmdb: tmdb, matchesURL: nil)
+    }
+
+    @Test func aShelfIsTMDBsSpecialsOnSpotify() async throws {
+        let shelf = try await catalog().discover(.new)
+        // The pop album matches its title but isn't comedy.
+        #expect(shelf.map(\.id) == ["spotify:album:haveitall"])
+        #expect(ComedyFilter.isComedy(shelf.first?.genreNames))
+    }
+
+    @Test func trendingComediansAreSpotifyArtists() async throws {
+        let comedians = try await catalog().trendingComedians()
+        #expect(comedians.map(\.id) == ["spotify:artist:taylor", "spotify:artist:maya"])
+        #expect(comedians.allSatisfy { ComedyFilter.isComedy($0.genreNames) })
+    }
+
+    @Test func nothingWithoutATMDBKey() async throws {
+        var tmdb = Self.tmdb
+        tmdb.key = nil
+        #expect(try await catalog(tmdb: tmdb).discover(.new).isEmpty)
+        #expect(try await catalog(tmdb: tmdb).trendingComedians().isEmpty)
+    }
+
+    @Test func matchesAreRemembered() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("spotify-matches-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let first = SpotifyCatalog(api: SpotifyCatalogTests.api(), confirming: CatalogComedianCheck(catalog: MockCatalog()), tmdb: Self.tmdb, matchesURL: url)
+        let shelf = try await first.discover(.new)
+        let store = SpecialMatchStore(url: url)
+        #expect(store.lookup(1) == .some(shelf.first))
+        // Not on Spotify: a miss, tried again in a few days.
+        #expect(store.lookup(3) == .some(nil))
+        // On Spotify but not comedy: not kept, so a later check can say.
+        #expect(store.lookup(2) == nil)
+    }
+
+    @Test func mockSpotifyShelvesAreComedy() async throws {
+        let mock = MockSpotifyCatalog()
+        for shelf in DiscoverShelf.allCases {
+            let albums = try await mock.discover(shelf)
+            #expect(!albums.isEmpty)
+            #expect(albums.allSatisfy { Provider.of($0.id) == .spotify && ComedyFilter.isComedy($0.genreNames) })
+        }
+        #expect(try await mock.trendingComedians().map(\.name) == ["Lena Brooks", "Theo Park"])
+    }
+}
+
+/// The iTunes Search check behind Spotify artists without genres.
+struct ITunesComedianCheckTests {
+    static let answer = """
+    {"resultCount":3,"results":[
+      {"artistName":"Tom Segura","collectionName":"Sledgehammer","primaryGenreName":"Comedy"},
+      {"artistName":"Tom Segura","collectionName":"I'd Like to Leave Now","primaryGenreName":"Biographies & Memoirs"},
+      {"artistName":"Tom Segura Band","collectionName":"Riffs","primaryGenreName":"Rock"}
+    ]}
+    """
+
+    private func check(status: Int = 200, body: String = Self.answer) -> ITunesComedianCheck {
+        ITunesComedianCheck(transport: { request in
+            (Data(body.utf8), HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!)
+        })
+    }
+
+    @Test func aComedyAlbumMakesAComedian() async {
+        #expect(await check().isComedian(named: "Tom Segura") == true)
+        #expect(await check().isComedian(named: "Tom Segura Band") == false)
+        #expect(await check().isComedian(named: "Someone Else") == false)
+    }
+
+    @Test func noAnswerIsUnknownNotNo() async {
+        #expect(await check(status: 403).isComedian(named: "Tom Segura") == nil)
+        #expect(await check(body: "not json").isComedian(named: "Tom Segura") == nil)
+    }
+
+    @Test func asksForAlbumsByArtistName() throws {
+        let url = try #require(ITunesComedianCheck.request(for: "Tom Segura").url)
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        #expect(url.host() == "itunes.apple.com")
+        #expect(items.contains(URLQueryItem(name: "term", value: "Tom Segura")))
+        #expect(items.contains(URLQueryItem(name: "entity", value: "album")))
+        #expect(items.contains(URLQueryItem(name: "attribute", value: "artistTerm")))
+        #expect(ITunesComedianCheck.request(for: "x").httpMethod == "GET")
+    }
+}
+
 /// The routing catalog sends Spotify IDs to Spotify and the rest to Apple
 /// Music.
 struct RoutingCatalogTests {
-    let routing = RoutingCatalog(appleMusic: MockCatalog(), spotify: SpotifyCatalog(api: SpotifyCatalogTests.api(), appleMusic: MockCatalog()))
+    let routing = RoutingCatalog(appleMusic: MockCatalog(), spotify: SpotifyCatalog(api: SpotifyCatalogTests.api(), confirming: CatalogComedianCheck(catalog: MockCatalog()), matchesURL: nil))
 
     @Test func eachIDGoesToItsService() async throws {
         #expect(try await routing.album(id: "spotify:album:haveitall").album.title == "Have It All")
@@ -121,5 +237,12 @@ struct RoutingCatalogTests {
     @Test func searchUsesTheChosenService() async throws {
         #expect(try await routing.search("comedy", in: .spotify).specials.map(\.id) == ["spotify:album:haveitall"])
         #expect(try await routing.search("Maya", in: .appleMusic).comedians.map(\.name) == ["Maya Okafor"])
+    }
+
+    @Test func homesShelvesComeFromTheChosenService() async throws {
+        let mocks = RoutingCatalog(appleMusic: MockCatalog(), spotify: MockSpotifyCatalog())
+        #expect(try await mocks.discover(.new, in: .spotify).allSatisfy { Provider.of($0.id) == .spotify })
+        #expect(try await mocks.discover(.new, in: .appleMusic).allSatisfy { Provider.of($0.id) == .appleMusic })
+        #expect(try await mocks.trendingComedians(in: .spotify).allSatisfy { Provider.of($0.id) == .spotify })
     }
 }

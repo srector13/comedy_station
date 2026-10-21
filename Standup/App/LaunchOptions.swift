@@ -13,6 +13,8 @@ import SwiftUI
 ///     -StandupFeedbackSeconds 6         keep "Added to Library" up longer
 ///     -StandupNowPlaying album:<id>:3:125  a paused special, bit 4 at 2:05 (mock)
 ///     -StandupShowNowPlaying YES        open Now Playing over it (mock)
+///     -StandupService spotify           the service picked (appleMusic, spotify,
+///                                       or ask for the first-launch choice; mock)
 ///
 /// Arguments of the form `-Key value` land in UserDefaults' argument domain.
 struct LaunchOptions: Equatable {
@@ -32,6 +34,8 @@ struct LaunchOptions: Equatable {
     var showNowPlaying = false
     /// `-StandupSpotify connected`: mock mode starts signed in to Spotify.
     var spotifyConnected = false
+    /// The service mock mode starts on; nil asks, as a first launch does.
+    var service: Provider? = .appleMusic
 
     /// Options from `value(key)`, the launch argument for each key.
     init(value: (String) -> String?) {
@@ -50,6 +54,11 @@ struct LaunchOptions: Equatable {
         nowPlaying = value("StandupNowPlaying").flatMap { $0.isEmpty ? nil : $0 }
         showNowPlaying = ["yes", "true", "1"].contains(value("StandupShowNowPlaying")?.lowercased() ?? "")
         spotifyConnected = value("StandupSpotify")?.lowercased() == "connected"
+        service = switch value("StandupService")?.lowercased() {
+        case "spotify": .spotify
+        case "ask": nil
+        default: .appleMusic
+        }
     }
 
     init() {

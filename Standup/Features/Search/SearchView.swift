@@ -5,13 +5,15 @@ import SwiftUI
 struct SearchView: View {
     let model: SearchModel
     @Environment(SpotifyAccount.self) private var spotify
+    @Environment(ServiceChoice.self) private var service
 
     var body: some View {
         NavigationStack {
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .safeAreaInset(edge: .top) {
-                    if spotify.isConnected {
+                    // The Spotify route searches only Spotify.
+                    if spotify.isConnected && !service.isSpotify {
                         providerPicker
                     }
                 }
@@ -19,13 +21,14 @@ struct SearchView: View {
                 .comedyDestinations()
         }
         .onChange(of: spotify.isConnected) { _, connected in
-            if !connected {
+            if !connected && !service.isSpotify {
                 model.setProvider(.appleMusic)
             }
         }
     }
 
-    /// Apple Music | Spotify, once Spotify is connected.
+    /// Apple Music | Spotify, once Spotify is connected on the Apple Music
+    /// route.
     private var providerPicker: some View {
         @Bindable var model = model
         return Picker("Search", selection: $model.searchProvider) {

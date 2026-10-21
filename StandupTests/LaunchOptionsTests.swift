@@ -28,6 +28,12 @@ struct LaunchOptionsTests {
         #expect(options.initialTab == .library)
     }
 
+    @Test func mockModeStartsOnTheServiceAskedFor() {
+        #expect(options([:]).service == .appleMusic)
+        #expect(options(["StandupService": "spotify"]).service == .spotify)
+        #expect(options(["StandupService": "ask"]).service == nil)
+    }
+
     @Test func ignoresUnknownValues() {
         let options = options(["StandupMock": "maybe", "StandupAccess": "nope", "StandupAppearance": "sepia", "StandupTab": "radio"])
         #expect(options == LaunchOptions())

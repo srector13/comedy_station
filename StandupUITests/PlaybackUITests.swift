@@ -5,6 +5,17 @@ import XCTest
 /// Simulator; the real thing is tested on a device.)
 final class PlaybackUITests: StandupUITestCase {
     /// Play a special, open Now Playing, and use every control.
+    /// No mini-player until something is loaded.
+    @MainActor
+    func testMiniPlayerOnlyOnceSomethingPlays() {
+        let app = launch(tab: "home", extra: ["-StandupRoute", "album:mock-al-lower"], dark: false)
+        let play = element("album.play", in: app)
+        require(play, in: app, timeout: 15, "no Play button")
+        XCTAssertFalse(element("miniPlayer.open", in: app).exists, "a mini-player before anything played")
+        play.tap()
+        require(element("miniPlayer.open", in: app), in: app, timeout: 10, "no mini-player once playing")
+    }
+
     @MainActor
     func testPlayThenUseNowPlaying() {
         let app = launch(tab: "home", extra: ["-StandupRoute", "album:mock-al-lower"], dark: false)

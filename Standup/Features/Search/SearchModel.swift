@@ -15,8 +15,9 @@ final class SearchModel {
 
     /// The search field's text.
     var query = ""
-    /// Which service to search (the switch shown once Spotify is connected).
-    private(set) var provider = Provider.appleMusic
+    /// Which service to search: the service Standup runs on, or on Apple
+    /// Music, the switch shown once Spotify is connected too.
+    private(set) var provider: Provider
     private(set) var phase: Phase = .idle
     private(set) var results = SearchResults()
     private(set) var suggestions: [SearchSuggestion] = []
@@ -28,9 +29,10 @@ final class SearchModel {
     @ObservationIgnored private let debounce: Duration
     @ObservationIgnored private var pending: Task<Void, Never>?
 
-    init(catalog: any CatalogProviding, query: String = "", debounce: Duration = .milliseconds(300)) {
+    init(catalog: any CatalogProviding, query: String = "", provider: Provider = .appleMusic, debounce: Duration = .milliseconds(300)) {
         self.catalog = catalog
         self.query = query
+        self.provider = provider
         self.debounce = debounce
     }
 

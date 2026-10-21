@@ -115,7 +115,7 @@ final class HomeBrowseUITests: StandupUITestCase {
             gear.tap()
             let field = element("settings.tmdbKey", in: app)
             require(field, in: app, timeout: 5, "no TMDB key field")
-            XCTAssertTrue(element("settings.tmdbCredit", in: app).exists, "no TMDB credit")
+            XCTAssertTrue(element("settings.service", in: app).exists, "no service section")
             snap("80-settings", dark: dark)
 
             field.tap()
@@ -123,6 +123,12 @@ final class HomeBrowseUITests: StandupUITestCase {
             element("settings.tmdbSave", in: app).tap()
             require(element("settings.tmdbSaved", in: app), in: app, timeout: 5, "the key wasn't kept")
             snap("81-settings-key-saved", dark: dark)
+            // The credit is at the bottom, below the fold.
+            let credit = element("settings.tmdbCredit", in: app)
+            for _ in 0..<3 where !credit.exists {
+                app.swipeUp()
+            }
+            XCTAssertTrue(credit.exists, "no TMDB credit")
             element("settings.done", in: app).tap()
             app.terminate()
         }

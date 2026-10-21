@@ -14,6 +14,8 @@ extension View {
             .environment(player)
             .environment(SpecialsSettings(store: MemoryKeyStore(), check: { _ in }))
             .environment(SpotifyAccount(clientIDs: MemoryKeyStore(), tokens: MemoryKeyStore(), isMock: true))
+            .environment(ServiceChoice(defaults: nil, initial: .appleMusic))
+            .environment(AuthGate(access: MockMusicAccess(scenario: .ready)))
             .tint(Theme.accent)
     }
 }

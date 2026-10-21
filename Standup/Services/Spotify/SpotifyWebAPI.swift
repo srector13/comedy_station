@@ -91,10 +91,10 @@ struct SpotifyWebAPI: Sendable {
 
     // MARK: Requests
 
-    func search(_ term: String, offset: Int = 0) async throws -> SearchResponse {
+    func search(_ term: String, types: String = "artist,album,track", offset: Int = 0) async throws -> SearchResponse {
         try await get("search", [
             "q": term,
-            "type": "artist,album,track",
+            "type": types,
             "limit": String(Self.searchLimit),
             "offset": String(offset),
             "market": "from_token",

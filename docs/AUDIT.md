@@ -37,7 +37,7 @@ The App Library keeps `MusicItemID`s and re-loads items from the catalog. It nev
 
 ## Spotify (Phase 7)
 
-Spotify is a second, optional source. The rules hold for it like this, and `scripts/audit_no_library_writes.sh` checks the code side:
+Spotify is a second source: alongside Apple Music, or on its own when Spotify is picked on first launch (the Spotify route, which never asks for Apple Music access). The rules hold for it like this, and `scripts/audit_no_library_writes.sh` checks the code side:
 
 - **Rule 1, no library writes.**
   - The Web API is used read-only. The only non-GET request is sign-in's token request in `SpotifyAuth.swift`.
@@ -48,15 +48,16 @@ Spotify is a second, optional source. The rules hold for it like this, and `scri
   - Spotify has no equivalent of `affectsListeningHistory`. Settings says so, and suggests Spotify's Private Session.
 - **Rule 3, comedy only.**
   - Spotify puts genres on artists, so an item counts when its comedian's Spotify genres include "comedy".
-  - When Spotify lists no genres, a comedian of the same name on Apple Music decides. Unconfirmed items are left out.
-  - Tests: `SpotifyCatalogTests`, including a pop decoy.
+  - When Spotify lists no genres, Apple's public iTunes Search decides (`ITunesComedianCheck`): the person counts when one of their albums there is filed under Comedy. It needs no Apple Music sign-in, and it's one GET per name. Unconfirmed items are left out.
+  - On the Spotify route, Home's TMDB shelves are matched to Spotify albums the same way they're matched to Apple Music (`SpecialMatcher`), and each match goes through the same check.
+  - Tests: `SpotifyCatalogTests`, `SpotifyHomeTests` and `ITunesComedianCheckTests`, including pop decoys.
 - **Rule 4, branding.** Spotify items carry a "SPOTIFY" label and an "Open in Spotify" link, which Spotify's terms ask for. No Apple branding was added.
 
 ## 4. No Apple logos, wordmark or app icon
 
 - **Bundled images:** the original placeholder icon (a mic on a stand, drawn by `scripts/make_app_icon.py`), in three variants, and TMDB's own logo, which its terms require next to its credit in Settings → About.
 - **SF Symbols:** no `applelogo` or other Apple-branded symbols. The app uses generic ones (`music.mic`, `house.fill`, `play.fill`, …).
-- **"Apple Music" as words:** appears only as plain text naming the service, in onboarding and error messages. This is the name of the subscription, not the wordmark.
+- **"Apple Music" as words:** appears only as plain text naming the service, in onboarding (including the first-launch choice), Settings and error messages. This is the name of the subscription, not the wordmark.
 - **Subscription offer:** the "Try Apple Music" button opens Apple's own `musicSubscriptionOffer` sheet. That sheet is Apple-presented, not app-drawn branding.
 
 ## How to re-run

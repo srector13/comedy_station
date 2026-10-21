@@ -20,6 +20,7 @@ struct StandupApp: App {
             .environment(environment.player)
             .environment(environment.specials)
             .environment(environment.spotify)
+            .environment(environment.service)
             .environment(\.play, { [player = environment.player] request in
                 Task { await player.handle(request) }
             })
