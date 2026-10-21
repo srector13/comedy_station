@@ -147,6 +147,75 @@ struct DiscoverTests {
         #expect(essential["vote_count.gte"] == "50")
     }
 
+    @Test func browseAsksForAServiceOrADecade() {
+        let now = TMDBClient.day(from: "2026-10-19")!
+        let netflix = TMDBClient.discoverQuery(keyword: 9716, from: nil, to: now, order: .popular, minimumVotes: 0, streaming: .init(provider: 8, region: "US"), page: 1)
+        #expect(netflix["with_watch_providers"] == "8")
+        #expect(netflix["watch_region"] == "US")
+        #expect(netflix["with_watch_monetization_types"] == "flatrate")
+        let (from, to) = TMDBDiscovery.window(ofDecade: 1990, now: now)
+        let nineties = TMDBClient.discoverQuery(keyword: 9716, from: from, to: to, order: .votes, minimumVotes: 0, page: 1)
+        #expect(nineties["primary_release_date.gte"] == "1990-01-01")
+        #expect(nineties["primary_release_date.lte"] == "1999-12-31")
+        #expect(nineties["sort_by"] == "vote_count.desc")
+        #expect(nineties["with_watch_providers"] == nil)
+        // This decade ends today.
+        #expect(TMDBDiscovery.window(ofDecade: 2020, now: now).1 == now)
+    }
+
+    @Test func browsePicksTheBigServicesInOrder() throws {
+        let json = """
+        {"results":[
+          {"provider_id":15,"provider_name":"Hulu","display_priority":5},
+          {"provider_id":1796,"provider_name":"Netflix Standard with Ads","display_priority":20},
+          {"provider_id":8,"provider_name":"Netflix","display_priority":2},
+          {"provider_id":1899,"provider_name":"HBO Max","display_priority":4},
+          {"provider_id":1825,"provider_name":"HBO Max Amazon Channel","display_priority":40},
+          {"provider_id":9,"provider_name":"Amazon Prime Video","display_priority":3},
+          {"provider_id":2,"provider_name":"Apple TV Store","display_priority":1},
+          {"provider_id":283,"provider_name":"Crunchyroll","display_priority":30}
+        ]}
+        """
+        let providers = try JSONDecoder().decode(TMDBClient.Page<TMDBClient.WatchProvider>.self, from: Data(json.utf8)).results
+        #expect(TMDBClient.streamingServices(from: providers) == [
+            .streaming(id: 8, name: "Netflix"),
+            .streaming(id: 1899, name: "HBO Max"),
+            .streaming(id: 9, name: "Amazon Prime Video"),
+            .streaming(id: 15, name: "Hulu"),
+        ])
+        // "Max" alone, as it was called for a while.
+        #expect(TMDBClient.streamingServices(from: [.init(id: 1899, name: "Max", priority: 1)]) == [.streaming(id: 1899, name: "Max")])
+        #expect(TMDBClient.streamingServices(from: [.init(id: 7, name: "Maxdome", priority: 1)]).isEmpty)
+    }
+
+    @Test func categoriesHaveStableIDsAndTitles() {
+        #expect(BrowseCategory.streaming(id: 8, name: "Netflix").id == "streaming-8")
+        #expect(BrowseCategory.streaming(id: 8, name: "Netflix").title == "Netflix")
+        #expect(BrowseCategory.decade(1990).id == "decade-1990")
+        #expect(BrowseCategory.decade(1990).title == "The 1990s")
+        #expect(BrowseCategory.decades.first == .decade(2020))
+        #expect(BrowseCategory.decades.allSatisfy { $0.isDecade })
+    }
+
+    @Test func mockBrowseListsAreComedyAndFitTheirCategory() async throws {
+        let catalog = MockCatalog()
+        let categories = try await catalog.browseCategories()
+        #expect(categories.contains(.decade(2020)))
+        let twenties = try await catalog.browse(.decade(2020))
+        #expect(!twenties.isEmpty)
+        #expect(twenties.allSatisfy { ComedyFilter.isComedy($0.genreNames) })
+        #expect(twenties.allSatisfy { ($0.releaseDate ?? .distantPast) >= TMDBClient.day(from: "2020-01-01")! })
+        #expect(try await catalog.browse(.decade(2010)).isEmpty)
+        // The services split the sample specials between them.
+        var seen = Set<String>()
+        for service in MockData.streamingServices {
+            for album in try await catalog.browse(service) {
+                #expect(seen.insert(album.id).inserted)
+            }
+        }
+        #expect(seen.count == ComedyFilter.keep(MockData.albums).count)
+    }
+
     @Test func matchesAreRememberedAndMissesRetried() throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("matches-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }

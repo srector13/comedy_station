@@ -13,6 +13,11 @@ protocol TMDBListing: Sendable {
     func comedianName(of special: TMDBSpecial) async -> String?
     /// The comedians behind new and popular specials, most popular first.
     func trendingNames() async -> [String]
+    /// Browse's streaming services, where the person is.
+    func streamingServices() async throws -> [BrowseCategory]
+    /// A Browse list's specials: most popular on a service, or the best
+    /// known of a decade.
+    func specials(in category: BrowseCategory) async throws -> [TMDBSpecial]
 }
 
 /// `TMDBListing` from TMDB, with answers kept for ten minutes.
@@ -27,6 +32,9 @@ actor TMDBDiscovery: TMDBListing {
     nonisolated var key: String? {
         keys.load()
     }
+
+    /// Where streaming services are looked up: the device's region.
+    nonisolated let region = Locale.current.region?.identifier ?? "US"
 
     /// Three pages of twenty (two for the best rated, which need fifty
     /// votes to count).
@@ -77,6 +85,44 @@ actor TMDBDiscovery: TMDBListing {
             }
         }
         return names
+    }
+
+    func streamingServices() async throws -> [BrowseCategory] {
+        guard let key else { return [] }
+        let client = TMDBClient(key: key), region = self.region
+        return try await cached("services:\(region):\(key)") {
+            TMDBClient.streamingServices(from: try await client.watchProviders(region: region))
+        }
+    }
+
+    /// Two pages of twenty.
+    func specials(in category: BrowseCategory) async throws -> [TMDBSpecial] {
+        guard let key else { return [] }
+        let client = TMDBClient(key: key)
+        return try await cached("browse:\(category.id):\(region):\(key)") {
+            let keyword = try await self.cached("keyword:\(key)") { try await client.standUpKeywordID() }
+            let now = Date.now
+            var specials: [TMDBSpecial] = []
+            for page in 1...2 {
+                switch category {
+                case .streaming(let id, _):
+                    specials += try await client.specials(keyword: keyword, from: nil, to: now, streaming: .init(provider: id, region: region), page: page)
+                case .decade(let start):
+                    let (from, to) = Self.window(ofDecade: start, now: now)
+                    specials += try await client.specials(keyword: keyword, from: from, to: to, order: .votes, page: page)
+                }
+            }
+            var seen = Set<Int>()
+            return specials.filter { seen.insert($0.id).inserted }
+        }
+    }
+
+    /// January 1 of the decade's first year to December 31 of its last, or
+    /// today for this decade.
+    static func window(ofDecade start: Int, now: Date = .now) -> (Date, Date) {
+        let from = TMDBClient.day(from: "\(start)-01-01") ?? now
+        let to = TMDBClient.day(from: "\(start + 9)-12-31") ?? now
+        return (from, min(to, now))
     }
 
     private func cached<Value: Sendable>(_ key: String, load: () async throws -> Value) async throws -> Value {

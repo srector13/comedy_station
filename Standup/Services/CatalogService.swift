@@ -18,6 +18,13 @@ protocol CatalogProviding: Sendable {
     /// service picked on first launch).
     func discover(_ shelf: DiscoverShelf, in provider: Provider) async throws -> [ComedyAlbum]
     func trendingComedians(in provider: Provider) async throws -> [ComedyArtist]
+    /// Browse's TMDB lists (streaming services, then decades); empty
+    /// without a TMDB key.
+    func browseCategories() async throws -> [BrowseCategory]
+    /// A Browse list as this catalog's specials.
+    func browse(_ category: BrowseCategory) async throws -> [ComedyAlbum]
+    func browseCategories(in provider: Provider) async throws -> [BrowseCategory]
+    func browse(_ category: BrowseCategory, in provider: Provider) async throws -> [ComedyAlbum]
     func album(id: String) async throws -> AlbumDetail
     func artist(id: String) async throws -> ArtistDetail
     /// Just the comedian (name, artwork, genres), without their page.
@@ -53,11 +60,28 @@ extension CatalogProviding {
     func trendingComedians(in provider: Provider) async throws -> [ComedyArtist] {
         try await trendingComedians()
     }
+
+    func browseCategories() async throws -> [BrowseCategory] {
+        []
+    }
+
+    func browse(_ category: BrowseCategory) async throws -> [ComedyAlbum] {
+        []
+    }
+
+    func browseCategories(in provider: Provider) async throws -> [BrowseCategory] {
+        try await browseCategories()
+    }
+
+    func browse(_ category: BrowseCategory, in provider: Provider) async throws -> [ComedyAlbum] {
+        try await browse(category)
+    }
 }
 
 /// Sends each request to the service its item comes from: Spotify URIs to
-/// Spotify, everything else to Apple Music, which also keeps Browse and
-/// playlists. Search and Home's shelves go to the service asked for.
+/// Spotify, everything else to Apple Music, which also keeps the charts and
+/// playlists. Search, Home's shelves and Browse's TMDB lists go to the
+/// service asked for.
 struct RoutingCatalog: CatalogProviding {
     let appleMusic: any CatalogProviding
     let spotify: any CatalogProviding
@@ -116,6 +140,14 @@ struct RoutingCatalog: CatalogProviding {
 
     func trendingComedians(in provider: Provider) async throws -> [ComedyArtist] {
         try await catalog(for: provider).trendingComedians()
+    }
+
+    func browseCategories(in provider: Provider) async throws -> [BrowseCategory] {
+        try await catalog(for: provider).browseCategories()
+    }
+
+    func browse(_ category: BrowseCategory, in provider: Provider) async throws -> [ComedyAlbum] {
+        try await catalog(for: provider).browse(category)
     }
 
     func playlist(id: String) async throws -> PlaylistDetail {

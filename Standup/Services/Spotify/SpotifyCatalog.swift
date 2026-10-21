@@ -110,7 +110,7 @@ actor SpotifyCatalog: CatalogProviding {
     }
 
     /// Spotify's Development Mode has no charts or browse categories, so
-    /// Browse stays Apple Music's.
+    /// Browse's charts and playlists stay Apple Music's.
     func charts() async throws -> ComedyCharts {
         ComedyCharts()
     }
@@ -120,15 +120,34 @@ actor SpotifyCatalog: CatalogProviding {
     /// A Home shelf: TMDB's specials for it, each as its Spotify album.
     /// Specials without one are left out.
     func discover(_ shelf: DiscoverShelf) async throws -> [ComedyAlbum] {
+        guard let tmdb else { return [] }
+        return try await matched("discover:\(shelf.rawValue)", newestFirst: shelf == .new) { try await tmdb.specials(for: shelf) }
+    }
+
+    /// Streaming services, then decades.
+    func browseCategories() async throws -> [BrowseCategory] {
+        guard let tmdb, tmdb.key != nil else { return [] }
+        return ((try? await tmdb.streamingServices()) ?? []) + BrowseCategory.decades
+    }
+
+    func browse(_ category: BrowseCategory) async throws -> [ComedyAlbum] {
+        guard let tmdb else { return [] }
+        return try await matched("browse:\(category.id)", newestFirst: false) { try await tmdb.specials(in: category) }
+    }
+
+    /// The first `shelfLimit` of TMDB's specials for a list, each as its
+    /// Spotify album, in the list's order (or newest first). Specials
+    /// without one are left out.
+    private func matched(_ name: String, newestFirst: Bool, specials: () async throws -> [TMDBSpecial]) async throws -> [ComedyAlbum] {
         guard let tmdb, let key = tmdb.key else { return [] }
-        return try await cached("discover:\(shelf.rawValue):\(key)") {
-            let specials = Array(try await tmdb.specials(for: shelf).prefix(Self.shelfLimit))
-            var albums = await inOrder(specials, width: 3) { [self] special in
+        return try await cached("\(name):\(key)") {
+            let list = Array(try await specials().prefix(Self.shelfLimit))
+            var albums = await inOrder(list, width: 3) { [self] special in
                 await spotifyVersion(of: special, tmdb: tmdb)
             }
             var seen = Set<String>()
             albums = albums.filter { seen.insert($0.id).inserted }
-            if shelf == .new {
+            if newestFirst {
                 albums.sort { ($0.releaseDate ?? .distantPast) > ($1.releaseDate ?? .distantPast) }
             }
             matches.save()

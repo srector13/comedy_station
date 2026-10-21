@@ -5,6 +5,8 @@ enum Route: Hashable {
     case artist(ComedyArtist)
     case album(ComedyAlbum)
     case playlist(ComedyPlaylist)
+    /// A Browse list from TMDB.
+    case category(BrowseCategory)
 }
 
 extension View {
@@ -16,6 +18,7 @@ extension View {
             case .artist(let artist): ArtistView(artist: artist)
             case .album(let album): AlbumView(album: album)
             case .playlist(let playlist): PlaylistView(playlist: playlist)
+            case .category(let category): BrowseCategoryView(category: category)
             }
         }
     }

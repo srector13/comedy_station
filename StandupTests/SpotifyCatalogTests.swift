@@ -113,6 +113,8 @@ struct FakeTMDB: TMDBListing {
     var key: String? = "key"
     var lists: [DiscoverShelf: [TMDBSpecial]] = [:]
     var names: [String] = []
+    var services: [BrowseCategory] = []
+    var categoryLists: [BrowseCategory: [TMDBSpecial]] = [:]
 
     func specials(for shelf: DiscoverShelf) async throws -> [TMDBSpecial] {
         lists[shelf] ?? []
@@ -125,17 +127,29 @@ struct FakeTMDB: TMDBListing {
     func trendingNames() async -> [String] {
         names
     }
+
+    func streamingServices() async throws -> [BrowseCategory] {
+        services
+    }
+
+    func specials(in category: BrowseCategory) async throws -> [TMDBSpecial] {
+        categoryLists[category] ?? []
+    }
 }
 
 /// Home's TMDB shelves matched to Spotify, through the same comedy check.
 struct SpotifyHomeTests {
+    static let specials = [
+        TMDBSpecial(id: 1, title: "Taylor Tomlinson: Have It All", releaseDate: TMDBClient.day(from: "2024-02-13"), popularity: 50),
+        TMDBSpecial(id: 2, title: "Pop Star: Club Hits", releaseDate: nil, popularity: 40),
+        TMDBSpecial(id: 3, title: "Someone: Not on Spotify", releaseDate: nil, popularity: 30),
+    ]
+
     static let tmdb = FakeTMDB(
-        lists: [.new: [
-            TMDBSpecial(id: 1, title: "Taylor Tomlinson: Have It All", releaseDate: TMDBClient.day(from: "2024-02-13"), popularity: 50),
-            TMDBSpecial(id: 2, title: "Pop Star: Club Hits", releaseDate: nil, popularity: 40),
-            TMDBSpecial(id: 3, title: "Someone: Not on Spotify", releaseDate: nil, popularity: 30),
-        ]],
-        names: ["Taylor Tomlinson", "Pop Star", "Maya Okafor", "Nobody Known"]
+        lists: [.new: specials],
+        names: ["Taylor Tomlinson", "Pop Star", "Maya Okafor", "Nobody Known"],
+        services: [.streaming(id: 8, name: "Netflix")],
+        categoryLists: [.streaming(id: 8, name: "Netflix"): specials, .decade(2020): specials]
     )
 
     private func catalog(tmdb: FakeTMDB = Self.tmdb) -> SpotifyCatalog {
@@ -155,11 +169,21 @@ struct SpotifyHomeTests {
         #expect(comedians.allSatisfy { ComedyFilter.isComedy($0.genreNames) })
     }
 
+    @Test func browseListsAreSpotifySpecials() async throws {
+        let catalog = catalog()
+        #expect(try await catalog.browseCategories() == [.streaming(id: 8, name: "Netflix")] + BrowseCategory.decades)
+        #expect(try await catalog.browse(.streaming(id: 8, name: "Netflix")).map(\.id) == ["spotify:album:haveitall"])
+        #expect(try await catalog.browse(.decade(2020)).map(\.id) == ["spotify:album:haveitall"])
+        #expect(try await catalog.browse(.decade(1990)).isEmpty)
+    }
+
     @Test func nothingWithoutATMDBKey() async throws {
         var tmdb = Self.tmdb
         tmdb.key = nil
         #expect(try await catalog(tmdb: tmdb).discover(.new).isEmpty)
         #expect(try await catalog(tmdb: tmdb).trendingComedians().isEmpty)
+        #expect(try await catalog(tmdb: tmdb).browseCategories().isEmpty)
+        #expect(try await catalog(tmdb: tmdb).browse(.decade(2020)).isEmpty)
     }
 
     @Test func matchesAreRemembered() async throws {
@@ -244,5 +268,8 @@ struct RoutingCatalogTests {
         #expect(try await mocks.discover(.new, in: .spotify).allSatisfy { Provider.of($0.id) == .spotify })
         #expect(try await mocks.discover(.new, in: .appleMusic).allSatisfy { Provider.of($0.id) == .appleMusic })
         #expect(try await mocks.trendingComedians(in: .spotify).allSatisfy { Provider.of($0.id) == .spotify })
+        #expect(try await mocks.browse(.decade(2020), in: .spotify).allSatisfy { Provider.of($0.id) == .spotify })
+        #expect(try await mocks.browse(.decade(2020), in: .appleMusic).allSatisfy { Provider.of($0.id) == .appleMusic })
+        #expect(!(try await mocks.browseCategories(in: .spotify)).isEmpty)
     }
 }

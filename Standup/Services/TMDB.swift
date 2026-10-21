@@ -131,17 +131,26 @@ struct TMDBClient: Sendable {
     enum Order: String, Sendable {
         case popular = "popularity.desc"
         case rated = "vote_average.desc"
+        /// The most voted on: the best known of their time.
+        case votes = "vote_count.desc"
+    }
+
+    /// Where a special streams: a TMDB watch provider in a region.
+    struct Streaming: Equatable, Sendable {
+        var provider: Int
+        var region: String
     }
 
     /// One page (twenty) of specials with that keyword, released in a
     /// window (open at the start when `start` is nil), in an order; rated
-    /// lists can ask for enough votes to mean something.
-    func specials(keyword: Int, from start: Date?, to end: Date, order: Order = .popular, minimumVotes: Int = 0, page: Int = 1) async throws -> [TMDBSpecial] {
-        let results: Page<TMDBSpecial> = try await get("discover/movie", Self.discoverQuery(keyword: keyword, from: start, to: end, order: order, minimumVotes: minimumVotes, page: page))
+    /// lists can ask for enough votes to mean something. With `streaming`,
+    /// only specials included with that service's subscription.
+    func specials(keyword: Int, from start: Date?, to end: Date, order: Order = .popular, minimumVotes: Int = 0, streaming: Streaming? = nil, page: Int = 1) async throws -> [TMDBSpecial] {
+        let results: Page<TMDBSpecial> = try await get("discover/movie", Self.discoverQuery(keyword: keyword, from: start, to: end, order: order, minimumVotes: minimumVotes, streaming: streaming, page: page))
         return results.results
     }
 
-    static func discoverQuery(keyword: Int, from start: Date?, to end: Date, order: Order, minimumVotes: Int, page: Int) -> [String: String] {
+    static func discoverQuery(keyword: Int, from start: Date?, to end: Date, order: Order, minimumVotes: Int, streaming: Streaming? = nil, page: Int) -> [String: String] {
         var query = [
             "with_keywords": String(keyword),
             "primary_release_date.lte": day(end),
@@ -157,7 +166,54 @@ struct TMDBClient: Sendable {
         if minimumVotes > 0 {
             query["vote_count.gte"] = String(minimumVotes)
         }
+        if let streaming {
+            query["with_watch_providers"] = String(streaming.provider)
+            query["watch_region"] = streaming.region
+            query["with_watch_monetization_types"] = "flatrate"
+        }
         return query
+    }
+
+    /// A streaming service, as TMDB lists them.
+    struct WatchProvider: Decodable, Equatable, Sendable {
+        var id: Int
+        var name: String
+        /// Lower is more widely used in the region.
+        var priority: Int?
+
+        enum CodingKeys: String, CodingKey {
+            case id = "provider_id"
+            case name = "provider_name"
+            case priority = "display_priority"
+        }
+    }
+
+    /// The streaming services TMDB knows in a region.
+    func watchProviders(region: String) async throws -> [WatchProvider] {
+        let page: Page<WatchProvider> = try await get("watch/providers/movie", ["watch_region": region, "language": "en-US"])
+        return page.results
+    }
+
+    /// Browse's services, in this order, where the region has them: the
+    /// ones that carry most stand-up specials.
+    static let streamingPicks: [[String]] = [["netflix"], ["hbo max", "max"], ["prime video"], ["hulu"], ["peacock"], ["paramount"]]
+
+    /// `streamingPicks` among TMDB's providers: each the most used match,
+    /// leaving out add-on channels and ad tiers.
+    static func streamingServices(from providers: [WatchProvider]) -> [BrowseCategory] {
+        let candidates = providers
+            .filter { !$0.name.localizedCaseInsensitiveContains("channel") && !$0.name.localizedCaseInsensitiveContains("with ads") }
+            .sorted { ($0.priority ?? .max) < ($1.priority ?? .max) }
+        var seen = Set<Int>()
+        return streamingPicks.compactMap { picks in
+            let match = candidates.first { provider in
+                let name = provider.name.lowercased()
+                // A short pick ("max") must be the whole name.
+                return picks.contains { $0.count <= 3 ? name == $0 : name.contains($0) }
+            }
+            guard let match, seen.insert(match.id).inserted else { return nil }
+            return .streaming(id: match.id, name: match.name)
+        }
     }
 
     /// The comedian of a special whose title doesn't name them.

@@ -113,6 +113,27 @@ enum MockData {
         comedians.first { $0.id == id }
     }
 
+    /// Browse's services in mock mode (TMDB's IDs for them).
+    static let streamingServices: [BrowseCategory] = [
+        .streaming(id: 8, name: "Netflix"), .streaming(id: 1899, name: "HBO Max"), .streaming(id: 9, name: "Amazon Prime Video"),
+    ]
+
+    /// A Browse list from sample specials: a decade's by release year, a
+    /// service's an even share, newest first.
+    static func browse(_ category: BrowseCategory, in specials: [ComedyAlbum]) -> [ComedyAlbum] {
+        let newestFirst = specials.sorted { ($0.releaseDate ?? .distantPast) > ($1.releaseDate ?? .distantPast) }
+        switch category {
+        case .decade(let start):
+            return newestFirst.filter { album in
+                let year = album.releaseDate.map { Calendar(identifier: .gregorian).component(.year, from: $0) } ?? 0
+                return (start..<start + 10).contains(year)
+            }
+        case .streaming(let id, _):
+            let share = streamingServices.firstIndex { $0.id == "streaming-\(id)" } ?? 0
+            return newestFirst.enumerated().filter { $0.offset % streamingServices.count == share }.map(\.element)
+        }
+    }
+
     static func album(id: String) -> ComedyAlbum? {
         albums.first { $0.id == id }
     }

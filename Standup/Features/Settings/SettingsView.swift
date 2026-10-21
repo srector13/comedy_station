@@ -114,10 +114,10 @@ struct SettingsView: View {
                     .foregroundStyle(.red)
             } else if service.isSpotify {
                 Text(specials.hasKey
-                    ? "Home finds new, popular and essential stand-up specials through TMDB, and shows the ones on Spotify."
-                    : "With a free TMDB API key (themoviedb.org → Settings → API), Home shows new, popular and essential stand-up specials on Spotify. Without one, Home has only what you've saved.")
+                    ? "Home and Browse find stand-up specials through TMDB (new, popular, by streaming service and by decade), and show the ones on Spotify."
+                    : "With a free TMDB API key (themoviedb.org → Settings → API), Home and Browse show stand-up specials on Spotify: new, popular, by streaming service and by decade. Without one, Home has only what you've saved.")
             } else if specials.hasKey {
-                Text("Home and Browse find new and popular stand-up specials through TMDB, and show the ones on Apple Music.")
+                Text("Home and Browse find stand-up specials through TMDB (new, popular, by streaming service and by decade), and show the ones on Apple Music.")
             } else {
                 Text("Apple's comedy charts lean on novelty songs and old albums. With a free TMDB API key (themoviedb.org → Settings → API), Home and Browse show new and popular stand-up specials instead, the ones on Apple Music.")
             }

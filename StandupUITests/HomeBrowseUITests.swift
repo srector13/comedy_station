@@ -35,6 +35,36 @@ final class HomeBrowseUITests: StandupUITestCase {
         }
     }
 
+    /// Browse's streaming services and decades open lists of specials; a
+    /// decade without any says so.
+    @MainActor
+    func testBrowseByServiceAndDecade() {
+        for dark in [false, true] {
+            var app = launch(tab: "browse", dark: dark)
+            let services = element("browse.services", in: app)
+            require(services, in: app, timeout: 15, "no streaming services")
+            for _ in 0..<3 where !element("browse.decades", in: app).exists {
+                app.swipeUp()
+            }
+            require(element("browse.decades", in: app), in: app, timeout: 5, "no decades")
+            snap("55-browse-categories", dark: dark)
+            element("browse.category.decade-2020", in: app).tap()
+            require(element("category.album.mock-al-lower", in: app), in: app, timeout: 10, "the 2020s list is missing a 2025 special")
+            XCTAssertFalse(element("category.album.mock-al-arena", in: app).exists, "a pop album in the 2020s list")
+            snap("56-browse-decade", dark: dark)
+            app.terminate()
+
+            app = launch(tab: "browse", dark: dark)
+            require(element("browse.services", in: app), in: app, timeout: 15, "no streaming services")
+            for _ in 0..<3 where !element("browse.category.decade-2010", in: app).exists {
+                app.swipeUp()
+            }
+            element("browse.category.decade-2010", in: app).tap()
+            require(element("category.empty", in: app), in: app, timeout: 10, "an empty decade didn't say so")
+            app.terminate()
+        }
+    }
+
     /// A playlist lists only bits on comedy specials: its pop song is gone.
     @MainActor
     func testPlaylistShowsOnlyComedy() {

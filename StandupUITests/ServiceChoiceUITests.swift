@@ -1,8 +1,8 @@
 import XCTest
 
 /// First launch asks which service Standup runs on. Spotify goes through
-/// its setup to tabs without Browse, with Home and Search on Spotify; Apple
-/// Music asks for access straight away.
+/// its setup to tabs with Home, Browse and Search on Spotify; Apple Music
+/// asks for access straight away.
 final class ServiceChoiceUITests: StandupUITestCase {
     @MainActor
     func testFirstLaunchOnSpotify() {
@@ -24,9 +24,17 @@ final class ServiceChoiceUITests: StandupUITestCase {
 
         require(element("home.new", in: app), in: app, timeout: 15, "no Spotify specials on Home")
         XCTAssertTrue(element("home.new.spotify:album:mock-small-talk", in: app).exists, "Home's specials aren't Spotify's")
-        XCTAssertFalse(app.tabBars.buttons["Browse"].exists, "Browse on the Spotify route")
         XCTAssertFalse(element("miniPlayer.open", in: app).exists, "a mini-player with nothing playing")
         snap("87-home-spotify", dark: false)
+
+        // Browse: TMDB's lists, as Spotify specials.
+        app.tabBars.buttons["Browse"].tap()
+        let netflix = element("browse.category.streaming-8", in: app)
+        require(netflix, in: app, timeout: 10, "no streaming services on the Spotify route's Browse")
+        XCTAssertFalse(element("browse.featured", in: app).exists, "Apple's charts on the Spotify route")
+        snap("89-browse-spotify", dark: false)
+        netflix.tap()
+        require(element("category.album.spotify:album:mock-small-talk", in: app), in: app, timeout: 10, "Netflix's list isn't Spotify specials")
     }
 
     @MainActor

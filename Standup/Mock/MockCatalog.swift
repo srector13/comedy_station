@@ -85,6 +85,16 @@ struct MockCatalog: CatalogProviding {
         ComedyFilter.comedians(MockData.comedians, specials: MockData.albums)
     }
 
+    /// Browse's TMDB lists, as if TMDB had them: three services, and the
+    /// decades the sample specials come from.
+    func browseCategories() async throws -> [BrowseCategory] {
+        MockData.streamingServices + [.decade(2020), .decade(2010)]
+    }
+
+    func browse(_ category: BrowseCategory) async throws -> [ComedyAlbum] {
+        MockData.browse(category, in: ComedyFilter.keep(MockData.albums))
+    }
+
     func playlist(id: String) async throws -> PlaylistDetail {
         guard let playlist = MockData.playlists.first(where: { $0.id == id }) else { throw CatalogError.notFound }
         return PlaylistDetail(playlist: playlist, tracks: ComedyFilter.keep(MockData.playlistTracks(id)))

@@ -100,6 +100,14 @@ struct MockSpotifyCatalog: CatalogProviding {
         ComedyFilter.keep(MockSpotify.comedians)
     }
 
+    func browseCategories() async throws -> [BrowseCategory] {
+        MockData.streamingServices + [.decade(2020)]
+    }
+
+    func browse(_ category: BrowseCategory) async throws -> [ComedyAlbum] {
+        MockData.browse(category, in: ComedyFilter.keep(MockSpotify.albums.map(\.album)))
+    }
+
     func playlist(id: String) async throws -> PlaylistDetail {
         throw CatalogError.notFound
     }

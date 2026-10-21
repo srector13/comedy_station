@@ -5,8 +5,8 @@ import Observation
 /// - Apple Music needs a subscription, and Home, Browse and Search come
 ///   from Apple Music.
 /// - Spotify needs Premium and the Spotify app, and never touches Apple
-///   Music: Search is Spotify's, Home's TMDB shelves are matched to
-///   Spotify, and there's no Browse.
+///   Music: Search is Spotify's, and Home's and Browse's TMDB lists are
+///   matched to Spotify (Apple's charts and playlists aren't there).
 ///
 /// Nil until picked, which is what brings up the choice.
 @MainActor

@@ -72,7 +72,12 @@ Apple's comedy charts lean on novelty songs and decades-old albums. With a TMDB 
 
 Home also adds **More from …** for the comedians in your library.
 
-Each special is shown and played as its Apple Music album: same comedian (searched across their whole Apple Music discography), a matching title, and released around the same time. Specials without one are left out. Matches are remembered on the phone, so only the first load takes a while; a miss is tried again after a few days, because audio often comes out after the video. Bits and playlists still come from Apple's chart.
+**Browse** gets two grids from TMDB as well:
+
+- **Streaming Services:** the stand-up on Netflix, HBO Max, Prime Video, Hulu, Peacock and Paramount+, where they're in your region.
+- **Decades:** the best-known specials of each decade, from the 2020s back to the 1970s.
+
+Each special is shown and played as its Apple Music album: same comedian (searched across their whole Apple Music discography), a matching title, and released around the same time. Specials without one are left out. Matches are remembered on the phone, so only the first load takes a while; a miss is tried again after a few days, because audio often comes out after the video. Bits and playlists still come from Apple's chart. On the Spotify route, the same lists are matched to Spotify albums instead.
 
 1. Create an account at [themoviedb.org](https://www.themoviedb.org), then go to **Settings → API → Request an API key**.
 2. Choose **Developer** (personal, non-commercial use) and fill in the short form.
@@ -85,7 +90,7 @@ The key lives in your keychain and reaches your other devices through iCloud Key
 
 Standup asks on first launch whether to run on **Apple Music** or **Spotify** (Settings → Service switches later).
 
-- **On Spotify**, Standup never asks for Apple Music: Search, Home's TMDB shelves, the App Library and playback are all Spotify's, and there's no Browse tab (Spotify gives apps in Development Mode no charts or playlists). Without a TMDB key, Home has only what you've saved.
+- **On Spotify**, Standup never asks for Apple Music: Search, Home's and Browse's TMDB lists, the App Library and playback are all Spotify's. Apple's charts and playlists aren't there (Spotify gives apps in Development Mode none of its own). Without a TMDB key, Home has only what you've saved and Browse asks for a key.
 - **On Apple Music**, connecting Spotify in Settings adds an Apple Music | Spotify switch to Search.
 
 Either way, Spotify specials and comedians open, save to the App Library, and play. Playback happens in the Spotify app, so it needs Spotify **Premium** and the Spotify app installed.

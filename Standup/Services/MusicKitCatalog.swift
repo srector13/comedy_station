@@ -201,15 +201,31 @@ actor MusicKitCatalog: CatalogProviding {
     /// A Home shelf: TMDB's specials for it, each as its Apple Music album.
     /// Specials without one are left out.
     func discover(_ shelf: DiscoverShelf) async throws -> [ComedyAlbum] {
+        try await matched("discover:\(shelf.rawValue)", newestFirst: shelf == .new) { try await self.tmdb.specials(for: shelf) }
+    }
+
+    /// Streaming services, then decades.
+    func browseCategories() async throws -> [BrowseCategory] {
+        guard tmdb.key != nil else { return [] }
+        return ((try? await tmdb.streamingServices()) ?? []) + BrowseCategory.decades
+    }
+
+    func browse(_ category: BrowseCategory) async throws -> [ComedyAlbum] {
+        try await matched("browse:\(category.id)", newestFirst: false) { try await self.tmdb.specials(in: category) }
+    }
+
+    /// TMDB's specials for a list, each as its Apple Music album, in the
+    /// list's order (or newest first). Specials without one are left out.
+    private func matched(_ name: String, newestFirst: Bool, specials: () async throws -> [TMDBSpecial]) async throws -> [ComedyAlbum] {
         guard let key = tmdb.key else { return [] }
-        return try await cached("discover:\(shelf.rawValue):\(key)") {
-            let specials = try await tmdb.specials(for: shelf)
-            var albums = await inOrder(specials, width: 6) { [self] special in
+        return try await cached("\(name):\(key)") {
+            let list = try await specials()
+            var albums = await inOrder(list, width: 6) { [self] special in
                 await appleMusicVersion(of: special)
             }
             var seen = Set<String>()
             albums = albums.filter { seen.insert($0.id).inserted }
-            if shelf == .new {
+            if newestFirst {
                 albums.sort { ($0.releaseDate ?? .distantPast) > ($1.releaseDate ?? .distantPast) }
             }
             matches.save()

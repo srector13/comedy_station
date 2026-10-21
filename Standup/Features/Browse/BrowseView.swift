@@ -1,35 +1,31 @@
 import SwiftUI
 
-/// Browse: the Comedy charts and comedy playlists. A featured new special
-/// up top, then Top Specials, Top Bits (tap to play) and Playlists.
+/// Browse: TMDB's stand-up by streaming service and by decade, shown as the
+/// specials on the service Standup runs on. On Apple Music, Apple's Comedy
+/// charts too: a featured special up top, then the TMDB grids, Top
+/// Specials, Top Bits (tap to play) and Playlists. Spotify has no charts
+/// for an app like this, so its Browse is the grids alone.
 struct BrowseView: View {
     @State private var charts: LoadState<ComedyCharts> = .loading
+    @State private var categories: LoadState<[BrowseCategory]> = .loading
 
     @Environment(\.catalog) private var catalog
     @Environment(\.play) private var play
     @Environment(SpecialsSettings.self) private var specials
+    @Environment(ServiceChoice.self) private var service
+
+    private var provider: Provider {
+        service.provider ?? .appleMusic
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 34) {
-                    switch charts {
-                    case .loading:
-                        ProgressView()
-                            .frame(maxWidth: .infinity, minHeight: 240)
-                    case .failed(let message):
-                        ContentUnavailableView {
-                            Label("Can't Load Browse", systemImage: "wifi.exclamationmark")
-                        } description: {
-                            Text(message)
-                        } actions: {
-                            Button("Try Again") {
-                                Task { await load() }
-                            }
-                            .buttonStyle(.glass)
-                        }
-                    case .loaded(let charts):
-                        sections(charts)
+                    if provider == .appleMusic {
+                        appleMusicSections
+                    } else {
+                        tmdbOnlySections
                     }
                 }
                 .padding(.vertical, 12)
@@ -43,8 +39,80 @@ struct BrowseView: View {
         }
     }
 
+    // MARK: Sections
+
     @ViewBuilder
-    private func sections(_ charts: ComedyCharts) -> some View {
+    private var appleMusicSections: some View {
+        switch charts {
+        case .loading:
+            ProgressView()
+                .frame(maxWidth: .infinity, minHeight: 240)
+        case .failed(let message):
+            categorySections
+            failure(message)
+        case .loaded(let charts):
+            featured(charts)
+            categorySections
+            chartSections(charts)
+        }
+    }
+
+    /// Spotify's: the TMDB grids, which need a key.
+    @ViewBuilder
+    private var tmdbOnlySections: some View {
+        switch categories {
+        case .loading:
+            ProgressView()
+                .frame(maxWidth: .infinity, minHeight: 240)
+        case .failed(let message):
+            failure(message)
+        case .loaded(let list) where list.isEmpty:
+            ContentUnavailableView(
+                "Add a TMDB Key",
+                systemImage: "sparkles.tv",
+                description: Text("Browse lists stand-up by streaming service and by decade, from TMDB. Add your free TMDB key in Settings (the gear above), and Browse shows the specials on \(provider.name).")
+            )
+            .accessibilityIdentifier("browse.needsKey")
+        case .loaded:
+            categorySections
+        }
+    }
+
+    /// Streaming services, then decades.
+    @ViewBuilder
+    private var categorySections: some View {
+        if let list = categories.value {
+            let services = list.filter { !$0.isDecade }
+            let decades = list.filter(\.isDecade)
+            if !services.isEmpty {
+                categoryGrid("Streaming Services", services, id: "browse.services")
+            }
+            if !decades.isEmpty {
+                categoryGrid("Decades", decades, id: "browse.decades")
+            }
+        }
+    }
+
+    private func categoryGrid(_ title: String, _ items: [BrowseCategory], id: String) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ShelfHeader(title: title)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
+                ForEach(items) { category in
+                    NavigationLink(value: Route.category(category)) {
+                        CategoryTile(category: category)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("browse.category.\(category.id)")
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier(id)
+    }
+
+    @ViewBuilder
+    private func featured(_ charts: ComedyCharts) -> some View {
         if let featured = charts.newSpecials().first ?? charts.topSpecials.first {
             NavigationLink(value: Route.album(featured)) {
                 FeaturedBanner(album: featured, label: !charts.newSpecials().isEmpty ? "NEW SPECIAL" : charts.specialsSource == .chart ? "TOP SPECIAL" : "FEATURED SPECIAL")
@@ -54,7 +122,10 @@ struct BrowseView: View {
             .padding(.horizontal, 20)
             .accessibilityIdentifier("browse.featured")
         }
+    }
 
+    @ViewBuilder
+    private func chartSections(_ charts: ComedyCharts) -> some View {
         if !charts.topSpecials.isEmpty {
             Shelf(title: charts.specialsTitle) {
                 ForEach(charts.topSpecials) { album in
@@ -95,7 +166,32 @@ struct BrowseView: View {
         }
     }
 
+    private func failure(_ message: String) -> some View {
+        ContentUnavailableView {
+            Label("Can't Load Browse", systemImage: "wifi.exclamationmark")
+        } description: {
+            Text(message)
+        } actions: {
+            Button("Try Again") {
+                Task { await load() }
+            }
+            .buttonStyle(.glass)
+        }
+    }
+
+    // MARK: Loading
+
+    /// TMDB's lists first (quick), then on Apple Music the charts.
     private func load() async {
+        let provider = self.provider
+        do {
+            categories = .loaded(try await catalog.browseCategories(in: provider))
+        } catch {
+            if categories.value == nil {
+                categories = .failed(error.localizedDescription)
+            }
+        }
+        guard provider == .appleMusic else { return }
         do {
             charts = .loaded(try await catalog.charts())
         } catch {
@@ -103,6 +199,28 @@ struct BrowseView: View {
                 charts = .failed(error.localizedDescription)
             }
         }
+    }
+}
+
+/// A Browse list's tile: its name on a color of its own, like Music's
+/// category tiles.
+struct CategoryTile: View {
+    let category: BrowseCategory
+
+    var body: some View {
+        let tint = ArtworkRef(generatedFor: category.id).tint
+        Text(category.title)
+            .font(.headline)
+            .foregroundStyle(.white)
+            .multilineTextAlignment(.leading)
+            .padding(14)
+            .frame(maxWidth: .infinity, minHeight: 84, alignment: .bottomLeading)
+            .background(
+                LinearGradient(colors: [tint, tint.mix(with: .black, by: 0.45)], startPoint: .topLeading, endPoint: .bottomTrailing),
+                in: .rect(cornerRadius: 14)
+            )
+            .contentShape(.rect(cornerRadius: 14))
+            .accessibilityAddTraits(.isButton)
     }
 }
 

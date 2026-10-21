@@ -39,9 +39,10 @@ These steps need the Spotify app, Spotify Premium, and Spotify connected in Sett
 
 0. **First launch.** Delete Standup and install it again (or update from v1.0.6). It asks **Apple Music** or **Spotify**.
    - Apple Music asks for access at once, then shows the tabs.
-   - Spotify shows its setup: paste the Client ID, tap **Connect Spotify**, and sign in. The tabs have no Browse, Search has no switch, and Home's shelves are Spotify's (with a TMDB key).
+   - Spotify shows its setup: paste the Client ID, tap **Connect Spotify**, and sign in. Search has no switch, and Home's shelves and Browse's lists are Spotify's (with a TMDB key).
    - Settings → Service switches between them.
    - Nothing is loaded at first, so there's no mini-player. It appears once something plays and stays while paused.
+   - With a TMDB key, Browse shows Streaming Services and Decades. Open Netflix and a decade: each lists specials you can open and play, on the service you picked.
 
 11. **Connect.** Go to Settings (the gear) → Spotify → **Connect Spotify**. Sign in, and it says "Connected as …".
 12. **Search.** Search a comedian, then switch the control at the top to **Spotify**. Only comedians, specials and bits show, each marked SPOTIFY.

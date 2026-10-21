@@ -192,6 +192,36 @@ struct ComedyCharts: Hashable, Sendable {
     var isEmpty: Bool { topSpecials.isEmpty && topBits.isEmpty && playlists.isEmpty && newReleases.isEmpty }
 }
 
+/// A Browse list from TMDB: the stand-up specials on a streaming service,
+/// or from a decade, shown as their versions on the service Standup runs on.
+enum BrowseCategory: Hashable, Sendable, Identifiable {
+    /// TMDB's watch provider ID, and the service's name.
+    case streaming(id: Int, name: String)
+    /// The decade's first year (1990 for the 1990s).
+    case decade(Int)
+
+    var id: String {
+        switch self {
+        case .streaming(let id, _): "streaming-\(id)"
+        case .decade(let start): "decade-\(start)"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .streaming(_, let name): name
+        case .decade(let start): "The \(start)s"
+        }
+    }
+
+    /// The 2020s back to the 1970s, when the first specials aired.
+    static let decades: [BrowseCategory] = [2020, 2010, 2000, 1990, 1980, 1970].map(BrowseCategory.decade)
+
+    var isDecade: Bool {
+        if case .decade = self { true } else { false }
+    }
+}
+
 /// Home's shelves of specials from TMDB, as their Apple Music versions.
 enum DiscoverShelf: String, CaseIterable, Sendable {
     /// Out in the last year, newest first.
