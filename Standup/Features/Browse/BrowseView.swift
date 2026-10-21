@@ -97,7 +97,8 @@ struct BrowseView: View {
     private func serviceGrid(_ services: [BrowseCategory]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             ShelfHeader(title: "Streaming Services")
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 92, maximum: 140), spacing: 16)], spacing: 18) {
+            // Top-aligned, so a name on two lines doesn't lift its logo.
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 92, maximum: 140), spacing: 16, alignment: .top)], spacing: 18) {
                 ForEach(services) { service in
                     NavigationLink(value: Route.category(service)) {
                         ServiceTile(service: service)
