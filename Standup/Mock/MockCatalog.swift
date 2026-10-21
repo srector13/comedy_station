@@ -3,6 +3,15 @@ import Foundation
 /// `MockData` behind the catalog protocol, run through the same
 /// `ComedyFilter` as the live catalog.
 struct MockCatalog: CatalogProviding {
+    /// Seconds Home's and Browse's lists take to come back, to show their
+    /// loading placeholders (`-StandupCatalogDelay`).
+    var delay: TimeInterval = 0
+
+    private func pause() async {
+        guard delay > 0 else { return }
+        try? await Task.sleep(for: .seconds(delay))
+    }
+
     func suggestions(for term: String) async throws -> [SearchSuggestion] {
         let albums = matchingAlbums(term)
         let hits = ComedyFilter.comedians(matchingArtists(term), specials: albums).map(SearchSuggestion.comedian) + albums.map(SearchSuggestion.special)
@@ -59,6 +68,7 @@ struct MockCatalog: CatalogProviding {
     }
 
     func charts() async throws -> ComedyCharts {
+        await pause()
         let albums = MockData.chartAlbumIDs.compactMap(MockData.album(id:))
         let bits = MockData.chartBitPicks.compactMap { MockData.tracks["mock-al-\($0.0)"]?[safe: $0.1] }
         return ComedyCharts(
@@ -70,6 +80,7 @@ struct MockCatalog: CatalogProviding {
 
     /// Home's TMDB shelves, as if TMDB had named the sample specials.
     func discover(_ shelf: DiscoverShelf) async throws -> [ComedyAlbum] {
+        await pause()
         let specials = ComedyFilter.keep(MockData.albums)
         switch shelf {
         case .new:
@@ -82,17 +93,20 @@ struct MockCatalog: CatalogProviding {
     }
 
     func trendingComedians() async throws -> [ComedyArtist] {
-        ComedyFilter.comedians(MockData.comedians, specials: MockData.albums)
+        await pause()
+        return ComedyFilter.comedians(MockData.comedians, specials: MockData.albums)
     }
 
     /// Browse's TMDB lists, as if TMDB had them: three services, and the
     /// decades the sample specials come from.
     func browseCategories() async throws -> [BrowseCategory] {
-        MockData.streamingServices + [.decade(2020), .decade(2010)]
+        await pause()
+        return MockData.streamingServices + [.decade(2020), .decade(2010)]
     }
 
     func browse(_ category: BrowseCategory) async throws -> [ComedyAlbum] {
-        MockData.browse(category, in: ComedyFilter.keep(MockData.albums))
+        await pause()
+        return MockData.browse(category, in: ComedyFilter.keep(MockData.albums))
     }
 
     func playlist(id: String) async throws -> PlaylistDetail {

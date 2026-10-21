@@ -35,6 +35,36 @@ final class HomeBrowseUITests: StandupUITestCase {
         }
     }
 
+    /// While Home and Browse load, shimmering placeholders shaped like their
+    /// sections stand in, then the content replaces them.
+    @MainActor
+    func testLoadingPlaceholders() {
+        let app = launch(tab: "home", extra: ["-StandupCatalogDelay", "8"], dark: false)
+        require(element("home.loading", in: app), in: app, timeout: 10, "no placeholders while Home loads")
+        snap("57-home-loading", dark: false, settle: 0.5)
+        require(element("home.new", in: app), in: app, timeout: 30, "Home didn't fill in")
+        XCTAssertTrue(waitForAbsence(element("home.loading", in: app)), "placeholders left after Home loaded")
+
+        app.tabBars.buttons["Browse"].tap()
+        require(element("browse.loading", in: app), in: app, timeout: 10, "no placeholders while Browse loads")
+        snap("58-browse-loading", dark: false, settle: 0.5)
+        require(element("browse.featured", in: app), in: app, timeout: 30, "Browse didn't fill in")
+        XCTAssertTrue(waitForAbsence(element("browse.loading", in: app)), "placeholders left after Browse loaded")
+
+        element("browse.category.decade-2020", in: app).tap()
+        require(element("category.loading", in: app), in: app, timeout: 10, "no placeholders while a list loads")
+        snap("59-category-loading", dark: false, settle: 0.5)
+        require(element("category.album.mock-al-lower", in: app), in: app, timeout: 30, "the list didn't fill in")
+    }
+
+    /// Whether `element` goes away within `timeout` seconds (the sections
+    /// arrive one by one).
+    @MainActor
+    private func waitForAbsence(_ element: XCUIElement, timeout: TimeInterval = 10) -> Bool {
+        let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: element)
+        return XCTWaiter.wait(for: [gone], timeout: timeout) == .completed
+    }
+
     /// Browse's streaming services and decades open lists of specials; a
     /// decade without any says so.
     @MainActor

@@ -28,6 +28,11 @@ struct LaunchOptionsTests {
         #expect(options.initialTab == .library)
     }
 
+    @Test func aSlowCatalogIsOnlyOnRequest() {
+        #expect(options([:]).catalogDelay == 0)
+        #expect(options(["StandupCatalogDelay": "6"]).catalogDelay == 6)
+    }
+
     @Test func mockModeStartsOnTheServiceAskedFor() {
         #expect(options([:]).service == .appleMusic)
         #expect(options(["StandupService": "spotify"]).service == .spotify)

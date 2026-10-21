@@ -13,7 +13,8 @@ import SwiftUI
 /// - Essential Specials: TMDB's best rated of all time.
 /// - Recently Added, from the App Library.
 ///
-/// Each part loads on its own, so the page fills in as answers arrive.
+/// Each part loads on its own, so the page fills in as answers arrive,
+/// with a shimmering placeholder shaped like it until then.
 struct HomeView: View {
     /// Other specials by a comedian in the App Library.
     struct MoreFrom: Identifiable {
@@ -25,8 +26,12 @@ struct HomeView: View {
     @State private var path: [Route]
     @State private var shelves: [DiscoverShelf: [ComedyAlbum]] = [:]
     @State private var shelvesLoaded = false
+    /// TMDB's shelves and, when they fall short, Apple's chart have all
+    /// answered once.
+    @State private var specialsLoaded = false
     @State private var charts: LoadState<ComedyCharts>?
     @State private var trending: [ComedyArtist] = []
+    @State private var trendingLoaded = false
     @State private var moreFrom: [MoreFrom] = []
 
     @Environment(\.catalog) private var catalog
@@ -73,16 +78,18 @@ struct HomeView: View {
                     if !inProgress.isEmpty {
                         continueListening
                     }
-                    if !shelvesLoaded && charts == nil {
-                        ProgressView()
-                            .frame(maxWidth: .infinity, minHeight: 160)
-                    }
                     if !newSpecials.isEmpty {
                         cards(DiscoverShelf.new.title, newSpecials, id: "home.new")
+                    } else if !specialsLoaded {
+                        ShelfSkeleton()
+                            .loadingPlaceholder("home.loading")
                     }
                     rankedSpecials
                     if !trending.isEmpty {
                         trendingComedians
+                    } else if !trendingLoaded {
+                        BubbleShelfSkeleton()
+                            .loadingPlaceholder("home.loading")
                     }
                     ForEach(moreFrom) { entry in
                         let unsaved = entry.specials.filter { !library.specialIDs.contains($0.id) }
@@ -92,6 +99,9 @@ struct HomeView: View {
                     }
                     if let essential = shelves[.essential], !essential.isEmpty {
                         cards(DiscoverShelf.essential.title, essential, id: "home.essential")
+                    } else if shelves[.essential] == nil {
+                        ShelfSkeleton()
+                            .loadingPlaceholder("home.loading")
                     }
                     if !recentlyAdded.isEmpty {
                         Shelf(title: "Recently Added") {
@@ -176,6 +186,9 @@ struct HomeView: View {
             ranked(DiscoverShelf.popular.title, popular, ranks: true)
         } else if let charts = charts?.value, !charts.topSpecials.isEmpty {
             ranked(charts.specialsSource == .chart ? "Top Comedy" : charts.specialsTitle, charts.topSpecials, ranks: charts.specialsSource != .search)
+        } else if !specialsLoaded {
+            RankedSkeleton()
+                .loadingPlaceholder("home.loading")
         }
     }
 
@@ -251,6 +264,7 @@ struct HomeView: View {
             }
         }
         shelvesLoaded = true
+        defer { specialsLoaded = true }
         guard provider == .appleMusic, (shelves[.new] ?? []).isEmpty || popular == nil else { return }
         do {
             charts = .loaded(try await catalog.charts())
@@ -263,6 +277,7 @@ struct HomeView: View {
 
     private func loadTrending() async {
         trending = (try? await catalog.trendingComedians(in: provider)) ?? []
+        trendingLoaded = true
     }
 
     /// The three comedians from this service added to the App Library most

@@ -30,7 +30,7 @@ final class AppEnvironment {
             }
             self.spotify = spotify
             service = ServiceChoice(defaults: nil, initial: options.service)
-            catalog = RoutingCatalog(appleMusic: MockCatalog(), spotify: MockSpotifyCatalog())
+            catalog = RoutingCatalog(appleMusic: MockCatalog(delay: options.catalogDelay), spotify: MockSpotifyCatalog())
             library = .inMemory(seeded: options.seedLibrary, catalog: catalog)
             engine = MockPlaybackEngine()
             spotifyEngine = nil

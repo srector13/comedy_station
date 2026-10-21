@@ -45,8 +45,17 @@ struct BrowseView: View {
     private var appleMusicSections: some View {
         switch charts {
         case .loading:
-            ProgressView()
-                .frame(maxWidth: .infinity, minHeight: 240)
+            // TMDB's grids usually arrive first; placeholders for the rest.
+            BannerSkeleton()
+                .loadingPlaceholder("browse.loading")
+            if categories.value != nil {
+                categorySections
+            } else {
+                CategoriesSkeleton()
+                    .loadingPlaceholder("browse.loading")
+            }
+            ShelfSkeleton()
+                .loadingPlaceholder("browse.loading")
         case .failed(let message):
             categorySections
             failure(message)
@@ -62,8 +71,8 @@ struct BrowseView: View {
     private var tmdbOnlySections: some View {
         switch categories {
         case .loading:
-            ProgressView()
-                .frame(maxWidth: .infinity, minHeight: 240)
+            CategoriesSkeleton()
+                .loadingPlaceholder("browse.loading")
         case .failed(let message):
             failure(message)
         case .loaded(let list) where list.isEmpty:

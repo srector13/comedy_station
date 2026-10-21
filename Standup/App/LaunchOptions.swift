@@ -15,6 +15,7 @@ import SwiftUI
 ///     -StandupShowNowPlaying YES        open Now Playing over it (mock)
 ///     -StandupService spotify           the service picked (appleMusic, spotify,
 ///                                       or ask for the first-launch choice; mock)
+///     -StandupCatalogDelay 6            Home's and Browse's lists take this long (mock)
 ///
 /// Arguments of the form `-Key value` land in UserDefaults' argument domain.
 struct LaunchOptions: Equatable {
@@ -36,6 +37,8 @@ struct LaunchOptions: Equatable {
     var spotifyConnected = false
     /// The service mock mode starts on; nil asks, as a first launch does.
     var service: Provider? = .appleMusic
+    /// Seconds the mock catalog takes over Home's and Browse's lists.
+    var catalogDelay: Double = 0
 
     /// Options from `value(key)`, the launch argument for each key.
     init(value: (String) -> String?) {
@@ -54,6 +57,7 @@ struct LaunchOptions: Equatable {
         nowPlaying = value("StandupNowPlaying").flatMap { $0.isEmpty ? nil : $0 }
         showNowPlaying = ["yes", "true", "1"].contains(value("StandupShowNowPlaying")?.lowercased() ?? "")
         spotifyConnected = value("StandupSpotify")?.lowercased() == "connected"
+        catalogDelay = value("StandupCatalogDelay").flatMap(Double.init) ?? 0
         service = switch value("StandupService")?.lowercased() {
         case "spotify": .spotify
         case "ask": nil

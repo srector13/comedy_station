@@ -23,8 +23,8 @@ struct BrowseCategoryView: View {
     private var content: some View {
         switch albums {
         case .loading:
-            ProgressView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            SpecialRowsSkeleton()
+                .loadingPlaceholder("category.loading")
         case .failed(let message):
             ContentUnavailableView {
                 Label("Can't Load \(category.title)", systemImage: "wifi.exclamationmark")
