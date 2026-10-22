@@ -27,8 +27,7 @@ struct ArtworkView: View {
     }
 
     var body: some View {
-        Color.clear
-            .aspectRatio(fill ? nil : 1, contentMode: .fit)
+        canvas
             .overlay {
                 if let url = artwork.url(side: pixels) {
                     AsyncImage(url: url, transaction: Transaction(animation: .easeOut(duration: 0.2))) { phase in
@@ -44,6 +43,18 @@ struct ArtworkView: View {
             }
             .clipped()
             .accessibilityHidden(true)
+    }
+
+    /// Square, or the whole proposed frame. (A nil aspect ratio isn't the
+    /// same: it falls back to the clear color's square ideal size, which
+    /// left bands above and below a phone's hero and beside an iPad's.)
+    @ViewBuilder
+    private var canvas: some View {
+        if fill {
+            Color.clear
+        } else {
+            Color.clear.aspectRatio(1, contentMode: .fit)
+        }
     }
 }
 

@@ -263,11 +263,13 @@ struct TrackRow: View {
         .accessibilityHint("Plays the special from this bit")
     }
 
-    /// The title, with the "E" right after its last word when it wraps.
+    /// The title, with the "E" right after its last word when it wraps. A
+    /// no-break space keeps the "E" with that word rather than alone on a
+    /// line of its own.
     private func title(state: PlayerService.BitState) -> Text {
         let title = Text(track.title)
             .foregroundStyle(state == .none ? Color.primary : Theme.accent)
-        return track.isExplicit ? Text("\(title) \(ExplicitBadge.text)") : title
+        return track.isExplicit ? Text("\(title)\u{00A0}\(ExplicitBadge.text)") : title
     }
 }
 

@@ -199,10 +199,20 @@ struct FeaturedSpecialCard: View {
                 Text(album.title)
                     .font(.headline)
                     .lineLimit(2)
-                Text(details)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                Group {
+                    if showsComedian {
+                        Text([album.artistName, Format.year(album.releaseDate)].compactMap { $0 }.joined(separator: " · "))
+                        if album.trackCount > 0 {
+                            Text(Format.bitCount(album.trackCount))
+                        }
+                    } else {
+                        Text([Format.longDate(album.releaseDate), album.trackCount > 0 ? Format.bitCount(album.trackCount) : nil]
+                            .compactMap { $0 }.joined(separator: " · "))
+                    }
+                }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
             }
             Spacer(minLength: 0)
             Image(systemName: "chevron.forward")
@@ -217,16 +227,6 @@ struct FeaturedSpecialCard: View {
         .accessibilityHint("Shows the special")
     }
 
-    /// When it came out and how many bits, after the comedian if shown.
-    private var details: String {
-        [
-            showsComedian ? album.artistName : nil,
-            showsComedian ? Format.year(album.releaseDate) : Format.longDate(album.releaseDate),
-            album.trackCount > 0 ? Format.bitCount(album.trackCount) : nil,
-        ]
-        .compactMap { $0 }
-        .joined(separator: " · ")
-    }
 }
 
 /// A comedian in a horizontal shelf: round artwork over the name.

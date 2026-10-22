@@ -101,7 +101,9 @@ struct ComedySearchField: ViewModifier {
     func body(content: Content) -> some View {
         if isEnabled {
             content
-                .searchable(text: $model.query, prompt: "Comedians, Specials, and Bits")
+                // On the Search page (iPad) the field stays open under the
+                // title, rather than folding into another search button.
+                .searchable(text: $model.query, placement: Self.onSearchPage ? .navigationBarDrawer(displayMode: .always) : .automatic, prompt: "Comedians, Specials, and Bits")
                 .searchSuggestions {
                     ForEach(model.visibleSuggestions) { suggestion in
                         SuggestionRow(suggestion: suggestion)

@@ -109,6 +109,8 @@ struct NowPlayingView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(lines)
             }
+            // Its lines come first; the artwork above gives way.
+            .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 8)
             if let album = session.album {
                 // White, like the other controls on the tinted background.
