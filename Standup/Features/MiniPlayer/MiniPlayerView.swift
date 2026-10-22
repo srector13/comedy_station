@@ -10,7 +10,7 @@ struct MiniPlayerView: View {
 
     var body: some View {
         let track = player.currentTrack
-        HStack(spacing: 12) {
+        HStack(spacing: 4) {
             Button {
                 player.showsNowPlaying = true
             } label: {
@@ -54,26 +54,37 @@ struct MiniPlayerView: View {
             .accessibilityHint(track == nil ? "" : "Opens Now Playing")
             .accessibilityIdentifier("miniPlayer.open")
 
-            Button(player.isPlaying ? "Pause" : "Play", systemImage: player.isPlaying ? "pause.fill" : "play.fill") {
+            // Full-size tap areas: the symbols alone are small targets.
+            Button {
                 Task { await player.togglePlayPause() }
+            } label: {
+                Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
+                    .contentTransition(.symbolEffect(.replace))
+                    .frame(width: 44, height: 44)
+                    .contentShape(.rect)
             }
-            .labelStyle(.iconOnly)
             .font(.title3)
-            .contentTransition(.symbolEffect(.replace))
             .disabled(track == nil)
+            .accessibilityLabel(player.isPlaying ? "Pause" : "Play")
             .accessibilityIdentifier("miniPlayer.playPause")
 
             if placement != .inline {
-                Button("Skip Forward 15 Seconds", systemImage: "goforward.15") {
+                Button {
                     Task { await player.skip(by: PlayerService.skipInterval) }
+                } label: {
+                    Image(systemName: "goforward.15")
+                        .frame(width: 44, height: 44)
+                        .contentShape(.rect)
                 }
-                .labelStyle(.iconOnly)
                 .font(.title3)
                 .disabled(track == nil)
+                .accessibilityLabel("Skip Forward 15 Seconds")
+                .accessibilityIdentifier("miniPlayer.forward15")
             }
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 16)
+        .padding(.leading, 16)
+        .padding(.trailing, 6)
         // The accessory's height is fixed, as the tab bar's is.
         .dynamicTypeSize(...DynamicTypeSize.xxLarge)
         .matchedTransitionSource(id: "nowPlaying", in: namespace)

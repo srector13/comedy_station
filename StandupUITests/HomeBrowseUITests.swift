@@ -19,6 +19,13 @@ final class HomeBrowseUITests: StandupUITestCase {
             }
             require(element("home.trending", in: app), in: app, timeout: 5, "no Trending Comedians")
             snap("51b-home-trending", dark: dark)
+            // Maya's one unsaved special gets a wide card, not a shelf of one.
+            let lone = element("home.moreFrom.mock-ar-maya.mock-al-groupchat", in: app)
+            for _ in 0..<3 where !lone.exists || !lone.isHittable {
+                app.swipeUp()
+            }
+            require(lone, in: app, timeout: 5, "a comedian's one other special isn't a wide card")
+            snap("51d-home-more-from", dark: dark)
             for _ in 0..<4 where !element("home.essential", in: app).exists {
                 app.swipeUp()
             }
@@ -31,6 +38,22 @@ final class HomeBrowseUITests: StandupUITestCase {
             snap("52-browse", dark: dark)
             app.swipeUp()
             snap("53-browse-scrolled", dark: dark)
+            app.terminate()
+        }
+    }
+
+    /// A shelf's title opens all its specials (See All).
+    @MainActor
+    func testSeeAll() {
+        for dark in [false, true] {
+            let app = launch(tab: "home", extra: seeded, dark: dark)
+            require(element("home.new", in: app), in: app, timeout: 15, "no New Specials")
+            let title = app.buttons["New Specials"]
+            require(title, in: app, timeout: 5, "New Specials' title doesn't open anything")
+            title.tap()
+            require(element("seeAll.mock-al-lower", in: app), in: app, timeout: 10, "See All doesn't list the shelf's specials")
+            XCTAssertTrue(app.navigationBars["New Specials"].exists, "See All isn't titled for its shelf")
+            snap("50b-see-all", dark: dark)
             app.terminate()
         }
     }
@@ -227,6 +250,12 @@ final class IPadScreenshotTests: StandupUITestCase {
             app = launch(tab: "library", extra: seeded, dark: dark)
             require(element("library.comedians", in: app), in: app, timeout: 20, "no library")
             snap("74-ipad-library", dark: dark)
+            app.terminate()
+
+            // The search field is on the Search page only, not on every tab.
+            app = launch(tab: "search", extra: ["-StandupSearch", "maya"], dark: dark)
+            require(element("result.artist.mock-ar-maya", in: app), in: app, timeout: 20, "no search results")
+            snap("75-ipad-search", dark: dark)
             app.terminate()
         }
     }

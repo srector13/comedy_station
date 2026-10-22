@@ -82,7 +82,7 @@ Each special is shown and played as its Apple Music album: same comedian (search
 1. Create an account at [themoviedb.org](https://www.themoviedb.org), then go to **Settings → API → Request an API key**.
 2. Choose **Developer** (personal, non-commercial use) and fill in the short form.
 3. Copy the **API Key**. The longer **API Read Access Token** works too.
-4. In Standup, tap the gear on Home, Browse or Library. Paste the key and tap **Save Key**. Standup checks it with TMDB before keeping it.
+4. In Standup, tap the gear on Home, Browse or Library. Under **TMDB**, paste the key and tap **Save** in the field. Standup checks it with TMDB before keeping it.
 
 The key lives in your keychain and reaches your other devices through iCloud Keychain. It's never built into the app, because the release IPAs are public. TMDB's terms ask for its logo and notice, and for credit to JustWatch, where its streaming data and the services' logos come from. All three are in Settings → About.
 
@@ -102,7 +102,7 @@ Either way, Spotify specials and comedians open, save to the App Library, and pl
    - **iOS bundle ID:** `PolarReality.Standup`.
 2. Under **User Management**, add the Spotify account(s) that will use Standup (Development Mode allows 5).
 3. Copy the app's **Client ID**. No secret is needed: Standup signs in with PKCE.
-4. In Standup, paste the Client ID: on the Spotify setup screen (the Spotify route; tap **Continue**), or in Settings (the gear) → Spotify (tap **Save Client ID**). Then tap **Connect Spotify** and sign in.
+4. In Standup, paste the Client ID: on the Spotify setup screen (the Spotify route; tap **Continue**), or in Settings (the gear) → Spotify (tap **Save** in the field). Then tap **Connect Spotify** and sign in.
 
 The Client ID is kept in your keychain and syncs to your other devices. Each device signs in to Spotify on its own.
 

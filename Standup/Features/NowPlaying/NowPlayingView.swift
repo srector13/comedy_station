@@ -5,6 +5,7 @@ import SwiftUI
 /// and Up Next. Side by side in landscape.
 struct NowPlayingView: View {
     @Environment(PlayerService.self) private var player
+    @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showsUpNext = false
@@ -93,23 +94,28 @@ struct NowPlayingView: View {
         [track.artistName, track.albumTitle ?? session.title].joined(separator: " — ")
     }
 
+    /// The bit and who it's by. At accessibility text sizes each gets a
+    /// second line rather than being cut off after a word or two.
     private func titleRow(_ track: ComedyTrack, _ session: PlayerService.Session) -> some View {
-        HStack(spacing: 12) {
+        let lines = typeSize.isAccessibilitySize ? 2 : 1
+        return HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(track.title)
                     .font(.title3.bold())
-                    .lineLimit(1)
+                    .lineLimit(lines)
                     .accessibilityIdentifier("nowPlaying.title")
                 Text(subtitle(track, session))
                     .font(.body)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(lines)
             }
             Spacer(minLength: 8)
             if let album = session.album {
+                // White, like the other controls on the tinted background.
                 LibraryToolbarButton(item: .special(album))
                     .buttonStyle(.glass)
                     .buttonBorderShape(.circle)
+                    .tint(.white)
             }
         }
     }
@@ -136,9 +142,11 @@ struct NowPlayingView: View {
     }
 
     private var bottomBar: some View {
-        HStack(spacing: 12) {
+        // Wider gaps at accessibility sizes, where the symbols grow.
+        HStack(spacing: typeSize.isAccessibilitySize ? 20 : 12) {
             if player.supportsSpeed {
                 SpeedMenu()
+                    .tint(.white)
             } else {
                 Text("Playing in Spotify")
                     .font(.footnote.weight(.semibold))
@@ -152,7 +160,7 @@ struct NowPlayingView: View {
             } label: {
                 Image(systemName: "list.bullet")
                     .font(.title3)
-                    .frame(width: 44, height: 44)
+                    .frame(minWidth: 44, minHeight: 44)
                     .background(showsUpNext ? AnyShapeStyle(.white.opacity(0.22)) : AnyShapeStyle(.clear), in: .circle)
             }
             .buttonStyle(.plain)
@@ -303,6 +311,7 @@ struct SpeedMenu: View {
         } label: {
             Text(Self.label(player.rate))
                 .font(.subheadline.weight(.semibold).monospacedDigit())
+                .foregroundStyle(.white)
                 .padding(.horizontal, 12)
                 .frame(minWidth: 52, minHeight: 32)
                 .background(.white.opacity(0.16), in: .capsule)
@@ -330,7 +339,7 @@ struct ShuffleButton: View {
         } label: {
             Image(systemName: "shuffle")
                 .font(.title3)
-                .frame(width: 44, height: 44)
+                .frame(minWidth: 44, minHeight: 44)
                 .background(on ? AnyShapeStyle(.white.opacity(0.22)) : AnyShapeStyle(.clear), in: .circle)
         }
         .buttonStyle(.plain)

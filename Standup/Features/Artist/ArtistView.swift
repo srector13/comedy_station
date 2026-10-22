@@ -89,9 +89,9 @@ struct ArtistView: View {
                             .minimumScaleFactor(0.6)
                             .accessibilityAddTraits(.isHeader)
                         if let spotify = SpotifyWebAPI.webURL(for: shown.id) {
-                            Link("Open in Spotify", destination: spotify)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.white.opacity(0.9))
+                            OpenInSpotifyButton(url: spotify, onImage: true)
+                                .padding(.top, 4)
+                                .accessibilityIdentifier("artist.openInSpotify")
                         }
                     }
                     Spacer(minLength: 0)
@@ -166,9 +166,7 @@ struct ArtistView: View {
                 VStack(spacing: 0) {
                     ForEach(detail.topBits) { track in
                         Button {
-                            if let album = track.albumStub {
-                                play(PlayRequest(item: .album(album), startIndex: max((track.trackNumber ?? 1) - 1, 0), trackID: track.id))
-                            }
+                            play(.bit(track))
                         } label: {
                             BitRow(track: track, subtitle: track.albumTitle)
                                 .padding(.vertical, 6)
@@ -205,42 +203,6 @@ struct ArtistView: View {
                 .scrollIndicators(.hidden)
             }
         }
-    }
-}
-
-/// The latest special, in its own card on the comedian's page.
-struct FeaturedSpecialCard: View {
-    let album: ComedyAlbum
-
-    var body: some View {
-        HStack(spacing: 14) {
-            ArtworkView(album.artwork, placeholder: .poster(album.title), pixels: 400)
-                .frame(width: 104, height: 104)
-                .clipShape(.rect(cornerRadius: 8))
-            VStack(alignment: .leading, spacing: 4) {
-                Text("LATEST SPECIAL")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Theme.accent)
-                Text(album.title)
-                    .font(.headline)
-                    .lineLimit(2)
-                Text([Format.longDate(album.releaseDate), album.trackCount > 0 ? Format.bitCount(album.trackCount) : nil]
-                    .compactMap { $0 }.joined(separator: " · "))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 0)
-            Image(systemName: "chevron.forward")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.tertiary)
-                .accessibilityHidden(true)
-        }
-        .padding(14)
-        .background(Color(.tertiarySystemFill), in: .rect(cornerRadius: 20))
-        .contentShape(.rect(cornerRadius: 20))
-        .accessibilityElement(children: .combine)
-        .accessibilityHint("Shows the special")
     }
 }
 

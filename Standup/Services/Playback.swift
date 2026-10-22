@@ -19,6 +19,16 @@ struct PlayRequest: Equatable, Sendable {
     var resume = false
     /// The bit that was tapped, so its row can show it loading.
     var trackID: String?
+
+    /// A bit tapped on its own (in search results or a list of bits from
+    /// different specials): its special from that bit, or just the bit
+    /// when its special isn't known.
+    static func bit(_ track: ComedyTrack) -> PlayRequest {
+        guard let album = track.albumStub else {
+            return PlayRequest(item: .bits(title: track.title, tracks: [track]), trackID: track.id)
+        }
+        return PlayRequest(item: .album(album), startIndex: max((track.trackNumber ?? 1) - 1, 0), trackID: track.id)
+    }
 }
 
 /// Plays a queue of bits. The live engine wraps MusicKit's

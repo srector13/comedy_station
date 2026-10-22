@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// A comedian in a list: round artwork and name.
+/// A comedian in a list: round artwork and name. (The round artwork, and
+/// the section, already say it's a comedian.)
 struct ComedianRow: View {
     let artist: ComedyArtist
 
@@ -9,16 +10,11 @@ struct ComedianRow: View {
             ArtworkView(artist.artwork, placeholder: .monogram(artist.name), pixels: 160)
                 .frame(width: 52, height: 52)
                 .clipShape(.circle)
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 4) {
-                    Text(artist.name)
-                        .font(.body)
-                        .lineLimit(1)
-                    ProviderBadge(id: artist.id)
-                }
-                Text("Comedian")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+            HStack(spacing: 4) {
+                Text(artist.name)
+                    .font(.body)
+                    .lineLimit(1)
+                ProviderBadge(id: artist.id)
             }
         }
         .accessibilityElement(children: .combine)
@@ -43,7 +39,7 @@ struct SpecialRow: View {
                     if album.isExplicit { ExplicitBadge() }
                     ProviderBadge(id: album.id)
                 }
-                Text(["Special", album.artistName, Format.year(album.releaseDate)].compactMap { $0 }.joined(separator: " · "))
+                Text([album.artistName, Format.year(album.releaseDate)].compactMap { $0 }.joined(separator: " · "))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
@@ -53,7 +49,7 @@ struct SpecialRow: View {
     }
 }
 
-/// A bit in a list: artwork, title, comedian, duration. The bit playing
+/// A bit in a list: artwork, title, comedian and special, duration. The bit playing
 /// (or just tapped and loading) is marked on its artwork and in the accent
 /// color.
 struct BitRow: View {
@@ -86,7 +82,7 @@ struct BitRow: View {
                     if track.isExplicit { ExplicitBadge() }
                     ProviderBadge(id: track.id)
                 }
-                Text(subtitle ?? "Bit · \(track.artistName)")
+                Text(subtitle ?? [track.artistName, track.albumTitle].compactMap { $0 }.joined(separator: " · "))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(large ? 2 : 1)
@@ -145,11 +141,13 @@ struct BitStateIndicator: View {
     }
 }
 
-/// A special in a shelf or grid: artwork over title and year. A nil width
-/// fills the grid cell.
+/// A special in a shelf or grid: artwork over title and year (and the
+/// comedian, where specials by several are mixed). A nil width fills the
+/// grid cell.
 struct SpecialCard: View {
     let album: ComedyAlbum
     var width: CGFloat? = 160
+    var showsComedian = false
     @Environment(\.dynamicTypeSize) private var typeSize
 
     /// Wider at accessibility text sizes; nil (fill the cell) stays nil.
@@ -164,15 +162,70 @@ struct SpecialCard: View {
                 .font(.subheadline)
                 .foregroundStyle(.primary)
                 .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
-            if let year = Format.year(album.releaseDate) {
-                Text(year)
+            let detail = [showsComedian ? album.artistName : nil, Format.year(album.releaseDate)].compactMap { $0 }
+            if !detail.isEmpty {
+                Text(detail.joined(separator: " · "))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                    .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
             }
         }
         .frame(width: shownWidth, alignment: .leading)
         .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// A special in its own wide card: the latest one on a comedian's page
+/// (under a label), or the only one in a Home shelf, where a lone card
+/// would leave the row half empty.
+struct FeaturedSpecialCard: View {
+    let album: ComedyAlbum
+    /// The small accent line over the title, if any.
+    var label: String? = "LATEST SPECIAL"
+    var showsComedian = false
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ArtworkView(album.artwork, placeholder: .poster(album.title), pixels: 400)
+                .frame(width: 104, height: 104)
+                .clipShape(.rect(cornerRadius: 8))
+            VStack(alignment: .leading, spacing: 4) {
+                if let label {
+                    Text(label)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Theme.accent)
+                }
+                Text(album.title)
+                    .font(.headline)
+                    .lineLimit(2)
+                Text(details)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.forward")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.tertiary)
+                .accessibilityHidden(true)
+        }
+        .padding(14)
+        .background(Color(.tertiarySystemFill), in: .rect(cornerRadius: 20))
+        .contentShape(.rect(cornerRadius: 20))
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Shows the special")
+    }
+
+    /// When it came out and how many bits, after the comedian if shown.
+    private var details: String {
+        [
+            showsComedian ? album.artistName : nil,
+            showsComedian ? Format.year(album.releaseDate) : Format.longDate(album.releaseDate),
+            album.trackCount > 0 ? Format.bitCount(album.trackCount) : nil,
+        ]
+        .compactMap { $0 }
+        .joined(separator: " · ")
     }
 }
 
@@ -215,6 +268,29 @@ struct ProviderBadge: View {
     }
 }
 
+/// "Open in Spotify" as a glass button, on a Spotify special's or
+/// comedian's page. White over the comedian's photo.
+struct OpenInSpotifyButton: View {
+    let url: URL
+    var onImage = false
+
+    var body: some View {
+        Link(destination: url) {
+            HStack(spacing: 6) {
+                Text("Open in Spotify")
+                Image(systemName: "arrow.up.right")
+                    .font(.footnote.weight(.bold))
+                    .accessibilityHidden(true)
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(onImage ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+            .frame(minHeight: 30)
+        }
+        .buttonStyle(.glass)
+        .accessibilityHint("Opens the Spotify app")
+    }
+}
+
 /// The "E" Music shows beside explicit titles.
 struct ExplicitBadge: View {
     var body: some View {
@@ -223,22 +299,55 @@ struct ExplicitBadge: View {
             .foregroundStyle(.secondary)
             .accessibilityLabel("Explicit")
     }
+
+    /// The "E" as text, to follow a title that can wrap: it stays right
+    /// after the last word instead of floating beside the whole block.
+    static var text: Text {
+        Text(Image(systemName: "e.square.fill"))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .accessibilityLabel("Explicit")
+    }
 }
 
-/// A shelf title, Music style: bold, with an optional chevron.
+/// A shelf title, Music style: bold, and with a route, a chevron that
+/// opens the whole list (See All).
 struct ShelfHeader: View {
     let title: String
+    var route: Route?
 
     var body: some View {
-        Text(title)
-            .font(.title2.bold())
-            .accessibilityAddTraits(.isHeader)
-            .padding(.horizontal, 20)
+        Group {
+            if let route {
+                NavigationLink(value: route) {
+                    HStack(spacing: 4) {
+                        Text(title)
+                            .foregroundStyle(.primary)
+                        Image(systemName: "chevron.forward")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
+                    }
+                    .frame(minHeight: 44)
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Shows all of them")
+                // The chevron's tap area, not the title's height, sets the
+                // header's: keep shelves where they were.
+                .padding(.vertical, -8)
+            } else {
+                Text(title)
+            }
+        }
+        .font(.title2.bold())
+        .accessibilityAddTraits(.isHeader)
+        .padding(.horizontal, 20)
     }
 }
 
 /// Play and Shuffle side by side, stacked at accessibility text sizes so
-/// neither label is cut off.
+/// neither label is cut off. No wider than a phone's, centered, on iPad.
 struct PlayButtonsLayout<Content: View>: View {
     @ViewBuilder var content: Content
 
@@ -249,5 +358,7 @@ struct PlayButtonsLayout<Content: View>: View {
         layout {
             content
         }
+        .frame(maxWidth: typeSize.isAccessibilitySize ? 520 : 420)
+        .frame(maxWidth: .infinity)
     }
 }

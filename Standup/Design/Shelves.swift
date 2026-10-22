@@ -1,13 +1,15 @@
 import SwiftUI
 
-/// A titled horizontal shelf, Music style.
+/// A titled horizontal shelf, Music style. With a route, its title opens
+/// the whole list.
 struct Shelf<Content: View>: View {
     let title: String
+    var route: Route?
     @ViewBuilder var content: Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ShelfHeader(title: title)
+            ShelfHeader(title: title, route: route)
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: 14) {
                     content
@@ -29,28 +31,29 @@ extension DynamicTypeSize {
     }
 }
 
-/// How far through a special: a ring on its artwork, as on Continue
-/// Listening.
-struct ProgressRing: View {
+/// How far through a special: a thin bar under its artwork, as on Continue
+/// Listening, so the artwork stays clear.
+struct ProgressBar: View {
     let fraction: Double
-    var lineWidth: CGFloat = 3
 
     var body: some View {
-        ZStack {
-            Circle()
-                .stroke(.white.opacity(0.35), lineWidth: lineWidth)
-            Circle()
-                .trim(from: 0, to: min(max(fraction, 0.02), 1))
-                .stroke(.white, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-        }
-        .accessibilityElement()
-        .accessibilityLabel("\(Int((fraction * 100).rounded()))% played")
+        Capsule()
+            .fill(.quaternary)
+            .overlay(alignment: .leading) {
+                GeometryReader { proxy in
+                    Capsule()
+                        .fill(Theme.accent)
+                        .frame(width: max(proxy.size.width * min(max(fraction, 0), 1), 4))
+                }
+            }
+            .frame(height: 4)
+            .accessibilityElement()
+            .accessibilityLabel("\(Int((fraction * 100).rounded()))% played")
     }
 }
 
-/// A special left partway: artwork with its progress ring, title, and time
-/// left. Tapping resumes it.
+/// A special left partway: artwork, how far through, title, and time left.
+/// Tapping resumes it.
 struct ContinueListeningCard: View {
     let progress: ProgressSnapshot
     var width: CGFloat = 160
@@ -65,13 +68,8 @@ struct ContinueListeningCard: View {
             ArtworkView(progress.artwork, placeholder: .poster(progress.title), pixels: 500)
                 .frame(width: shownWidth, height: shownWidth)
                 .clipShape(.rect(cornerRadius: 8))
-                .overlay(alignment: .bottomTrailing) {
-                    ProgressRing(fraction: progress.fractionComplete)
-                        .frame(width: 26, height: 26)
-                        .padding(5)
-                        .background(.black.opacity(0.35), in: .circle)
-                        .padding(8)
-                }
+            ProgressBar(fraction: progress.fractionComplete)
+                .padding(.vertical, 4)
             Text(progress.title)
                 .font(.subheadline)
                 .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
@@ -131,23 +129,37 @@ struct RankedRow: View {
     }
 }
 
-/// A chart grid: rows in columns that scroll sideways, as in Music.
+/// A chart grid: rows in columns that scroll sideways, as in Music. On a
+/// phone a column fills most of the width, with the next one peeking in;
+/// wider screens show two or three columns at once.
 struct RankedGrid<Item: Identifiable, Row: View>: View {
     let title: String
+    var route: Route?
     let items: [Item]
     var rows = 4
     @ViewBuilder var row: (Int, Item) -> Row
 
     @Environment(\.dynamicTypeSize) private var typeSize
 
+    private nonisolated static var spacing: CGFloat { 16 }
+
+    /// A column's width in a row `length` points wide.
+    nonisolated static func columnWidth(in length: CGFloat) -> CGFloat {
+        let columns: CGFloat = length >= 1000 ? 3 : length >= 600 ? 2 : 1
+        guard columns > 1 else { return length * 0.9 - 2 }
+        return (length - spacing * (columns - 1)) / columns
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ShelfHeader(title: title)
+            ShelfHeader(title: title, route: route)
             ScrollView(.horizontal) {
-                LazyHGrid(rows: Array(repeating: GridItem(.flexible(), spacing: 10), count: typeSize.isAccessibilitySize ? 2 : rows), spacing: 16) {
+                LazyHGrid(rows: Array(repeating: GridItem(.flexible(), spacing: 10), count: typeSize.isAccessibilitySize ? 2 : rows), spacing: Self.spacing) {
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                         row(index + 1, item)
-                            .containerRelativeFrame(.horizontal, count: 10, span: 9, spacing: 16)
+                            .containerRelativeFrame(.horizontal) { length, _ in
+                                Self.columnWidth(in: length)
+                            }
                     }
                 }
                 .scrollTargetLayout()

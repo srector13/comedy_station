@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// The search tab's page. The field itself belongs to the tab view
-/// (`MainTabView`), which is what makes the bar show search as its own tab.
+/// The search tab's page. On iPhone the field itself belongs to the tab
+/// view (`MainTabView`), which is what makes the bar show search as its own
+/// tab; on iPad it's on this page.
 struct SearchView: View {
     let model: SearchModel
     @Environment(SpotifyAccount.self) private var spotify
@@ -18,6 +19,7 @@ struct SearchView: View {
                     }
                 }
                 .navigationTitle("Search")
+                .modifier(ComedySearchField(model: model, isEnabled: ComedySearchField.onSearchPage))
                 .comedyDestinations()
         }
         .onChange(of: spotify.isConnected) { _, connected in
@@ -67,9 +69,14 @@ struct SearchView: View {
     }
 }
 
-/// Results in Music's order: comedians, then specials, then bits.
+/// Results in Music's order: comedians, then specials, then bits. A bit
+/// plays when tapped, as everywhere; Show Special (touch and hold) opens its
+/// special.
 struct SearchResultsList: View {
     let results: SearchResults
+
+    @Environment(\.play) private var play
+    @State private var shownSpecial: ComedyAlbum?
 
     var body: some View {
         List {
@@ -100,23 +107,30 @@ struct SearchResultsList: View {
             if !results.bits.isEmpty {
                 Section("Bits") {
                     ForEach(results.bits) { track in
-                        Group {
-                            if let album = track.albumStub {
-                                NavigationLink(value: Route.album(album)) {
-                                    BitRow(track: track)
-                                }
-                                .accessibilityIdentifier("result.track.\(track.id)")
-                            } else {
-                                BitRow(track: track)
-                            }
+                        Button {
+                            play(.bit(track))
+                        } label: {
+                            BitRow(track: track)
+                                .contentShape(.rect)
                         }
-                        .libraryContextMenu(.bit(track))
+                        .buttonStyle(.plain)
+                        .accessibilityHint("Plays the bit")
+                        .accessibilityIdentifier("result.track.\(track.id)")
+                        .libraryContextMenu(.bit(track), showSpecial: showSpecial(of: track))
                         .librarySwipeActions(.bit(track))
                     }
                 }
             }
         }
         .listStyle(.plain)
+        .navigationDestination(item: $shownSpecial) { album in
+            AlbumView(album: album)
+        }
+    }
+
+    private func showSpecial(of track: ComedyTrack) -> (() -> Void)? {
+        guard let album = track.albumStub else { return nil }
+        return { shownSpecial = album }
     }
 }
 

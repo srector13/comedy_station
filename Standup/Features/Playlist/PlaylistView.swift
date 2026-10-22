@@ -32,7 +32,7 @@ struct PlaylistView: View {
                     Button {
                         play(PlayRequest(item: .playlist(playlist), startIndex: index, trackID: track.id))
                     } label: {
-                        BitRow(track: track, subtitle: [track.artistName, track.albumTitle].compactMap { $0 }.joined(separator: " · "))
+                        BitRow(track: track)
                     }
                     .buttonStyle(.plain)
                     .libraryContextMenu(.bit(track))
@@ -70,10 +70,12 @@ struct PlaylistView: View {
                 .font(.title2.bold())
                 .multilineTextAlignment(.center)
                 .accessibilityAddTraits(.isHeader)
+            // Gray: the curator has no page to open, unlike a special's
+            // comedian.
             if let curator = playlist.curatorName {
                 Text(curator)
                     .font(.title3)
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(.secondary)
             }
             if let summary = playlist.summary {
                 Text(summary)

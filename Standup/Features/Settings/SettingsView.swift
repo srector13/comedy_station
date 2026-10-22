@@ -90,24 +90,27 @@ struct SettingsView: View {
                     specials.remove()
                 }
             } else {
-                SecureField("TMDB API key", text: $draft)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .accessibilityIdentifier("settings.tmdbKey")
-                Button {
-                    Task { await save() }
-                } label: {
+                // Save shows up in the field once there's something to save,
+                // rather than a disabled row that looks like another field.
+                HStack(spacing: 10) {
+                    SecureField("TMDB API key", text: $draft)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .onSubmit { Task { await save() } }
+                        .accessibilityIdentifier("settings.tmdbKey")
                     if isChecking {
                         ProgressView()
-                    } else {
-                        Text("Save Key")
+                    } else if !draft.trimmingCharacters(in: .whitespaces).isEmpty {
+                        SaveFieldButton {
+                            Task { await save() }
+                        }
+                        .accessibilityLabel("Save Key")
+                        .accessibilityIdentifier("settings.tmdbSave")
                     }
                 }
-                .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty || isChecking)
-                .accessibilityIdentifier("settings.tmdbSave")
             }
         } header: {
-            Text("New & Popular Specials")
+            Text("TMDB")
         } footer: {
             if let problem {
                 Text(problem)
@@ -119,7 +122,7 @@ struct SettingsView: View {
             } else if specials.hasKey {
                 Text("Home and Browse find stand-up specials through TMDB (new, popular, by streaming service and by decade), and show the ones on Apple Music.")
             } else {
-                Text("Apple's comedy charts lean on novelty songs and old albums. With a free TMDB API key (themoviedb.org → Settings → API), Home and Browse show new and popular stand-up specials instead, the ones on Apple Music.")
+                Text("Apple's comedy charts lean on novelty songs and old albums. With a free TMDB API key (themoviedb.org → Settings → API), Home and Browse show new and popular stand-up specials on Apple Music instead.")
             }
         }
     }
@@ -127,16 +130,19 @@ struct SettingsView: View {
     private var spotifySection: some View {
         Section {
             if spotify.clientID == nil {
-                TextField("Spotify Client ID", text: $clientIDDraft)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .accessibilityIdentifier("settings.spotifyClientID")
-                Button("Save Client ID") {
-                    spotify.setClientID(clientIDDraft)
-                    clientIDDraft = ""
+                HStack(spacing: 10) {
+                    TextField("Spotify Client ID", text: $clientIDDraft)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .onSubmit { saveClientID() }
+                        .accessibilityIdentifier("settings.spotifyClientID")
+                    if !clientIDDraft.trimmingCharacters(in: .whitespaces).isEmpty {
+                        SaveFieldButton(action: saveClientID)
+                            .accessibilityLabel("Save Client ID")
+                            .accessibilityIdentifier("settings.spotifySaveClientID")
+                    }
                 }
-                .disabled(clientIDDraft.trimmingCharacters(in: .whitespaces).isEmpty)
-                .accessibilityIdentifier("settings.spotifySaveClientID")
+                setupGuideLink
             } else if spotify.isConnected {
                 Label(spotify.displayName.map { "Connected as \($0)" } ?? "Connected", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(Theme.accent)
@@ -159,6 +165,7 @@ struct SettingsView: View {
                 Button("Change Client ID") {
                     spotify.removeClientID()
                 }
+                setupGuideLink
             }
         } header: {
             Text("Spotify")
@@ -167,9 +174,33 @@ struct SettingsView: View {
                 Text(spotifyProblem)
                     .foregroundStyle(.red)
             } else {
-                Text("\(service.isSpotify ? "" : "Search and play stand-up on Spotify too. ")Spotify plays in its own app and needs Premium, and it can't keep comedy out of your Spotify listening history (a Private Session in Spotify can). Standup never saves anything to your Spotify library. Setup: docs/MUSICKIT_SETUP.md.")
+                Text("\(service.isSpotify ? "" : "Search and play stand-up on Spotify too. ")Spotify plays in its own app and needs Premium, and it can't keep comedy out of your Spotify listening history (a Private Session in Spotify can). Standup never saves anything to your Spotify library.")
             }
         }
+    }
+
+    /// How to make a Spotify Client ID, in the setup guide on GitHub.
+    private var setupGuideLink: some View {
+        Link(destination: Self.spotifySetupGuide) {
+            HStack {
+                Text("Setup Guide")
+                Spacer()
+                Image(systemName: "arrow.up.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
+        }
+        .accessibilityHint("Opens how to get a Spotify Client ID, in Safari")
+        .accessibilityIdentifier("settings.spotifyGuide")
+    }
+
+    static let spotifySetupGuide = URL(string: "https://github.com/srector13/comedy_station/blob/main/docs/MUSICKIT_SETUP.md#5-spotify-optional")!
+
+    private func saveClientID() {
+        guard !clientIDDraft.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        spotify.setClientID(clientIDDraft)
+        clientIDDraft = ""
     }
 
     private func connectSpotify() async {
@@ -211,6 +242,22 @@ struct SettingsView: View {
         } catch {
             problem = error.localizedDescription
         }
+    }
+}
+
+/// Save, inside a text field's row once it has text.
+private struct SaveFieldButton: View {
+    let action: @MainActor () -> Void
+
+    var body: some View {
+        Button("Save", action: action)
+            .font(.subheadline.weight(.semibold))
+            .buttonStyle(.glassProminent)
+            .controlSize(.small)
+            .foregroundStyle(Theme.onAccent)
+            // The small capsule, with a full-size tap area around it.
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(.rect)
     }
 }
 

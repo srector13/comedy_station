@@ -134,8 +134,8 @@ struct AlbumView: View {
             .foregroundStyle(.secondary)
 
             if let spotify = SpotifyWebAPI.webURL(for: shown.id) {
-                Link("Open in Spotify", destination: spotify)
-                    .font(.footnote.weight(.semibold))
+                OpenInSpotifyButton(url: spotify)
+                    .padding(.top, 6)
                     .accessibilityIdentifier("album.openInSpotify")
             }
 
@@ -199,22 +199,28 @@ struct AlbumView: View {
         }
         .font(.footnote)
         .foregroundStyle(.secondary)
-        .padding(.vertical, 12)
+        .padding(.top, 12)
+        // Clear of the tab bar, minimized or not, at the end of the list.
+        .padding(.bottom, 44)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("album.footer")
     }
 }
 
-/// One bit on a special's page: number, title, duration.
+/// One bit on a special's page: number, title, duration. The numbers sit
+/// in a column of one width, so titles (and the separators, which start
+/// with them) line up whether the number has one digit or two.
 struct TrackRow: View {
     let number: Int
     let track: ComedyTrack
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(PlayerService.self) private var player
+    @ScaledMetric(relativeTo: .body) private var numberWidth: CGFloat = 26
 
     var body: some View {
         let large = typeSize.isAccessibilitySize
         let state = player.state(ofBit: track.id)
+        let titleInset = numberWidth + 14
         HStack(spacing: 14) {
             // The number gives way to the playing or loading mark, as in Music.
             Group {
@@ -227,14 +233,10 @@ struct TrackRow: View {
                     BitStateIndicator(state: state)
                 }
             }
-            .frame(minWidth: 22, alignment: .trailing)
+            .frame(width: numberWidth, alignment: .trailing)
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 4) {
-                    Text(track.title)
-                        .foregroundStyle(state == .none ? Color.primary : Theme.accent)
-                        .lineLimit(large ? 4 : 2)
-                    if track.isExplicit { ExplicitBadge() }
-                }
+                title(state: state)
+                    .lineLimit(large ? 4 : 2)
                 if large {
                     Text(Format.trackTime(track.duration))
                         .font(.subheadline)
@@ -252,10 +254,20 @@ struct TrackRow: View {
         }
         .padding(.vertical, 6)
         .contentShape(.rect)
+        .alignmentGuide(.listRowSeparatorLeading) { _ in
+            titleInset
+        }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(number). \(track.title), \(Format.trackTime(track.duration))")
+        .accessibilityLabel("\(number). \(track.title)\(track.isExplicit ? ", Explicit" : ""), \(Format.trackTime(track.duration))")
         .accessibilityValue(BitStateIndicator.description(of: state))
         .accessibilityHint("Plays the special from this bit")
+    }
+
+    /// The title, with the "E" right after its last word when it wraps.
+    private func title(state: PlayerService.BitState) -> Text {
+        let title = Text(track.title)
+            .foregroundStyle(state == .none ? Color.primary : Theme.accent)
+        return track.isExplicit ? Text("\(title) \(ExplicitBadge.text)") : title
     }
 }
 

@@ -51,7 +51,7 @@ Spotify is a second source: alongside Apple Music, or on its own when Spotify is
   - When Spotify lists no genres, Apple's public iTunes Search decides (`ITunesComedianCheck`): the person counts when one of their albums there is filed under Comedy. It needs no Apple Music sign-in, and it's one GET per name. Unconfirmed items are left out.
   - On the Spotify route, Home's TMDB shelves are matched to Spotify albums the same way they're matched to Apple Music (`SpecialMatcher`), and each match goes through the same check.
   - Tests: `SpotifyCatalogTests`, `SpotifyHomeTests` and `ITunesComedianCheckTests`, including pop decoys.
-- **Rule 4, branding.** Spotify items carry a "SPOTIFY" label and an "Open in Spotify" link, which Spotify's terms ask for. No Apple branding was added.
+- **Rule 4, branding.** Spotify items carry a "SPOTIFY" label and an "Open in Spotify" button, which Spotify's terms ask for. No Apple branding was added.
 
 ## 4. No Apple logos, wordmark or app icon
 

@@ -7,6 +7,10 @@ enum LibraryCategory: String, CaseIterable, Identifiable, Hashable {
 
     var id: Self { self }
 
+    /// The rows at the top of Library. Recently Added opens from its
+    /// heading over the grid instead.
+    static let rows: [LibraryCategory] = [.comedians, .specials, .bits]
+
     var title: String {
         switch self {
         case .comedians: "Comedians"
@@ -37,6 +41,16 @@ enum LibraryCategory: String, CaseIterable, Identifiable, Hashable {
         case .recentlyAdded: "Everything you add shows up here, newest first."
         }
     }
+
+    /// The empty list's way to go find something to add.
+    var findTitle: String {
+        switch self {
+        case .comedians: "Find Comedians"
+        case .specials: "Find Specials"
+        case .bits: "Find Bits"
+        case .recentlyAdded: "Search Comedy"
+        }
+    }
 }
 
 /// The Library tab. It reads only Standup's own store, never the Apple Music
@@ -51,22 +65,38 @@ struct LibraryView: View {
             // chevron on every link, including the grid's cards.
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(LibraryCategory.allCases) { category in
+                    ForEach(LibraryCategory.rows) { category in
                         NavigationLink(value: category) {
                             CategoryRow(category: category)
                         }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("library.\(category.rawValue)")
-                        Divider()
-                            .padding(.leading, 44)
+                        if category != LibraryCategory.rows.last {
+                            Divider()
+                                .padding(.leading, 44)
+                        }
                     }
 
-                    if !specials.isEmpty {
-                        Text("Recently Added")
+                    if !library.isEmpty {
+                        NavigationLink(value: LibraryCategory.recentlyAdded) {
+                            HStack(spacing: 4) {
+                                Text("Recently Added")
+                                Image(systemName: "chevron.forward")
+                                    .font(.title3.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                    .accessibilityHidden(true)
+                            }
                             .font(.title2.bold())
-                            .accessibilityAddTraits(.isHeader)
-                            .padding(.top, 28)
-                            .padding(.bottom, 12)
+                            .frame(minHeight: 44)
+                            .contentShape(.rect)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(.isHeader)
+                        .accessibilityIdentifier("library.recentlyAdded")
+                        .padding(.top, 20)
+                        .padding(.bottom, 4)
+                    }
+                    if !specials.isEmpty {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 16, alignment: .top)], spacing: 20) {
                             ForEach(specials.prefix(6)) { saved in
                                 NavigationLink(value: Route.album(saved.album)) {
@@ -167,14 +197,25 @@ struct LibraryCategoryView: View {
     }
 }
 
+/// An empty library list, with a way over to Search to find something.
 struct LibraryEmptyView: View {
     let category: LibraryCategory
+    @Environment(\.selectTab) private var selectTab
 
     var body: some View {
         ContentUnavailableView {
             Label(category.emptyTitle, systemImage: category.symbol)
         } description: {
             Text(category.emptyMessage)
+        } actions: {
+            Button {
+                selectTab(.search)
+            } label: {
+                Label(category.findTitle, systemImage: "magnifyingglass")
+            }
+            .buttonStyle(.glassProminent)
+            .controlSize(.large)
+            .accessibilityIdentifier("library.empty.find")
         }
     }
 }
@@ -265,7 +306,7 @@ struct LibraryBitsList: View {
                     Button {
                         play(PlayRequest(item: .bits(title: Self.queueTitle, tracks: tracks), startIndex: index, trackID: track.id))
                     } label: {
-                        BitRow(track: track, subtitle: [track.artistName, track.albumTitle].compactMap { $0 }.joined(separator: " · "))
+                        BitRow(track: track)
                     }
                     .buttonStyle(.plain)
                     .libraryContextMenu(.bit(track), showSpecial: showSpecial(of: track))
@@ -287,11 +328,13 @@ struct LibraryBitsList: View {
 }
 
 /// Everything in the App Library, newest first. Bits that came with a
-/// special aren't listed one by one; the special is.
+/// special aren't listed one by one; the special is. A bit plays when
+/// tapped; Show Special (touch and hold) opens its special.
 struct RecentlyAddedList: View {
     @Query private var comedians: [SavedComedian]
     @Query private var specials: [SavedAlbum]
     @Query private var bits: [SavedTrack]
+    @State private var shownSpecial: ComedyAlbum?
 
     private var items: [(item: LibraryItem, date: Date)] {
         var all: [(item: LibraryItem, date: Date)] = []
@@ -308,17 +351,27 @@ struct RecentlyAddedList: View {
         } else {
             List(items, id: \.item) { entry in
                 LibraryItemRow(item: entry.item)
-                    .libraryContextMenu(entry.item)
+                    .libraryContextMenu(entry.item, showSpecial: showSpecial(of: entry.item))
                     .librarySwipeActions(entry.item)
             }
             .listStyle(.plain)
+            .navigationDestination(item: $shownSpecial) { album in
+                AlbumView(album: album)
+            }
         }
+    }
+
+    private func showSpecial(of item: LibraryItem) -> (() -> Void)? {
+        guard case .bit(let track) = item, let album = track.albumStub else { return nil }
+        return { shownSpecial = album }
     }
 }
 
-/// Any library item as a navigable row.
+/// Any library item as a row: a comedian or special opens its page, a
+/// bit plays.
 struct LibraryItemRow: View {
     let item: LibraryItem
+    @Environment(\.play) private var play
 
     var body: some View {
         switch item {
@@ -327,11 +380,14 @@ struct LibraryItemRow: View {
         case .special(let album):
             NavigationLink(value: Route.album(album)) { SpecialRow(album: album) }
         case .bit(let track):
-            if let album = track.albumStub {
-                NavigationLink(value: Route.album(album)) { BitRow(track: track) }
-            } else {
+            Button {
+                play(.bit(track))
+            } label: {
                 BitRow(track: track)
+                    .contentShape(.rect)
             }
+            .buttonStyle(.plain)
+            .accessibilityHint("Plays the bit")
         }
     }
 }

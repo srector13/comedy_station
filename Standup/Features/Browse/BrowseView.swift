@@ -170,9 +170,7 @@ struct BrowseView: View {
         if !charts.topBits.isEmpty {
             RankedGrid(title: charts.bitsTitle, items: charts.topBits) { rank, track in
                 Button {
-                    if let album = track.albumStub {
-                        play(PlayRequest(item: .album(album), startIndex: max((track.trackNumber ?? 1) - 1, 0), trackID: track.id))
-                    }
+                    play(.bit(track))
                 } label: {
                     RankedRow(rank: charts.bitRank(rank), title: track.title, subtitle: track.artistName, artwork: track.artwork, placeholderTitle: track.albumTitle ?? track.title)
                 }

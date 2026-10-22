@@ -115,5 +115,33 @@ final class ScreenshotTests: StandupUITestCase {
         comedians.tap()
         XCTAssertTrue(app.navigationBars["Comedians"].waitForExistence(timeout: 10))
         snap("14-library-comedians-empty", dark: false)
+
+        // The empty list's button goes over to Search.
+        let find = element("library.empty.find", in: app)
+        require(find, in: app, timeout: 5, "no Find Comedians in an empty list")
+        find.tap()
+        XCTAssertTrue(app.navigationBars["Search"].waitForExistence(timeout: 10), "Find Comedians didn't open Search")
+    }
+
+    /// A bit in the results plays when tapped, as everywhere else; touch and
+    /// hold offers its special.
+    @MainActor
+    func testSearchBitPlaysAndShowsItsSpecial() {
+        let app = launch(tab: "search", extra: ["-StandupSearch", "maya"], dark: false)
+        let bit = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "result.track.")).firstMatch
+        require(bit, in: app, timeout: 15, "no bits in the results")
+        for _ in 0..<3 where !bit.isHittable {
+            app.swipeUp()
+        }
+        bit.tap()
+        require(labelled("Now Playing:", in: app), in: app, timeout: 10, "tapping a bit didn't play it")
+        XCTAssertFalse(element("album.track.0", in: app).exists, "tapping a bit opened its special")
+
+        bit.press(forDuration: 1.2)
+        let showSpecial = app.buttons["Show Special"]
+        require(showSpecial, in: app, timeout: 5, "no Show Special for a bit")
+        snap("20b-search-bit-menu", dark: false, settle: 0.4)
+        showSpecial.tap()
+        require(element("album.track.0", in: app), in: app, timeout: 10, "Show Special didn't open the special")
     }
 }

@@ -35,6 +35,26 @@ struct PlayerServiceTests {
 
     // MARK: Starting
 
+    @Test func aBitTappedOnItsOwnPlaysItsSpecialFromThatBit() async throws {
+        let bit = bits[3]
+        let request = PlayRequest.bit(bit)
+        #expect(request.item == .album(try #require(bit.albumStub)))
+        #expect(request.startIndex == (bit.trackNumber ?? 1) - 1)
+        #expect(request.trackID == bit.id)
+
+        await player.handle(request)
+        #expect(player.session?.album?.id == special.id)
+        #expect(player.currentTrack?.id == bit.id)
+    }
+
+    @Test func aBitWithoutItsSpecialPlaysByItself() {
+        var bit = bits[0]
+        bit.albumID = nil
+        let request = PlayRequest.bit(bit)
+        #expect(request.item == .bits(title: bit.title, tracks: [bit]))
+        #expect(request.trackID == bit.id)
+    }
+
     @Test func playStartsTheWholeSpecialAtTheTop() async {
         await player.play(album: special)
         #expect(player.session?.album?.id == special.id)
