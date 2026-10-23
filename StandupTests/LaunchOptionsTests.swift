@@ -66,7 +66,9 @@ struct GateContentTests {
         #expect(content.title == "MusicKit Isn't Set Up")
         #expect(content.detail == "This copy is signed as X.")
         #expect(content.primary == .checkAgain)
-        #expect(content.footnote?.contains("Feather") == true)
+        #expect(content.footnote?.contains("App Services") == true)
+        // The App Store doesn't take apps that point people to sideloading.
+        #expect(content.footnote?.contains("Feather") == false)
     }
 
     @Test func unavailableShowsTheReason() {
