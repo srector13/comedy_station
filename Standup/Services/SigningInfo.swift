@@ -18,8 +18,17 @@ struct SigningInfo: Equatable, Sendable {
     var allowsCloudKit = false
     /// Whether this copy carries a provisioning profile at all. Copies from
     /// the App Store and TestFlight don't: Apple signs them with the
-    /// entitlements they were submitted with.
+    /// entitlements they were submitted with. Simulator builds don't
+    /// either, and may have no entitlements.
     var hasProfile = false
+    /// Running in the Simulator.
+    var isSimulator: Bool = {
+        #if targetEnvironment(simulator)
+        true
+        #else
+        false
+        #endif
+    }()
 
     static var current: SigningInfo {
         var info = SigningInfo(
@@ -61,10 +70,14 @@ struct SigningInfo: Equatable, Sendable {
     /// when it can. A copy from the App Store or TestFlight can: it's signed
     /// with the app's own entitlements, container included. A re-signed
     /// copy (Feather) is signed with its profile's entitlements, so the
-    /// profile has to include the container.
+    /// profile has to include the container. A simulator build without a
+    /// profile stays local: CloudKit stops the app outright when the
+    /// entitlement is missing, rather than failing to open.
     var iCloudProblem: String? {
         guard let container = iCloudContainer else { return "This copy has no bundle ID." }
-        guard hasProfile else { return nil }
+        guard hasProfile else {
+            return isSimulator ? "This simulator copy has no provisioning profile." : nil
+        }
         guard applicationIdentifier != nil else { return "This copy's provisioning profile couldn't be read." }
         guard allowsCloudKit, iCloudContainers.contains(container) else {
             return "Its provisioning profile doesn't include iCloud with the container \(container)."

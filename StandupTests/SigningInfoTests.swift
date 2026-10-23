@@ -82,9 +82,18 @@ struct SigningInfoTests {
     /// The App Store and TestFlight embed no profile; their copies are
     /// signed with the app's own entitlements, so they sync.
     @Test func anAppStoreCopySyncs() {
-        let info = SigningInfo(bundleID: "PolarReality.Standup")
+        var info = SigningInfo(bundleID: "PolarReality.Standup")
+        info.isSimulator = false
         #expect(!info.hasProfile)
         #expect(info.iCloudProblem == nil)
+    }
+
+    /// A simulator build may have no entitlements, and CloudKit stops an
+    /// app without them, so it stays local.
+    @Test func aSimulatorCopyWithoutAProfileStaysLocal() {
+        var info = SigningInfo(bundleID: "PolarReality.Standup")
+        info.isSimulator = true
+        #expect(info.iCloudProblem != nil)
     }
 
     @Test func noProfileFallsBackToTheBundleID() {
