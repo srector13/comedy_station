@@ -50,8 +50,8 @@ jobs:
                       continue
                   rank = preferred.index(name) if name in preferred else len(preferred)
                   # The preferred device first, on its newest runtime: a new
-                  # runtime can arrive with only an odd device (Xcode 27.1's
-                  # iOS 27.1 had just the foldable iPhone Duo).
+                  # runtime can arrive with only an odd device (Xcode 27.1 brought
+                  # iOS 27.1 with just the foldable iPhone Duo).
                   key = (-rank, version)
                   if best is None or key > best[0]:
                       best = (key, device["udid"], name)
@@ -137,8 +137,8 @@ jobs:
                       continue
                   rank = preferred.index(name) if name in preferred else len(preferred)
                   # The preferred device first, on its newest runtime: a new
-                  # runtime can arrive with only an odd device (Xcode 27.1's
-                  # iOS 27.1 had just the foldable iPhone Duo).
+                  # runtime can arrive with only an odd device (Xcode 27.1 brought
+                  # iOS 27.1 with just the foldable iPhone Duo).
                   key = (-rank, version)
                   if best is None or key > best[0]:
                       best = (key, device["udid"])
