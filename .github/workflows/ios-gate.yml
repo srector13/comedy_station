@@ -49,7 +49,10 @@ jobs:
                   if not name.startswith("iPhone"):
                       continue
                   rank = preferred.index(name) if name in preferred else len(preferred)
-                  key = (version, -rank)
+                  # The preferred device first, on its newest runtime: a new
+                  # runtime can arrive with only an odd device (Xcode 27.1's
+                  # iOS 27.1 had just the foldable iPhone Duo).
+                  key = (-rank, version)
                   if best is None or key > best[0]:
                       best = (key, device["udid"], name)
           print(best[1] if best else "")
@@ -133,7 +136,10 @@ jobs:
                   if not name.startswith("iPad"):
                       continue
                   rank = preferred.index(name) if name in preferred else len(preferred)
-                  key = (version, -rank)
+                  # The preferred device first, on its newest runtime: a new
+                  # runtime can arrive with only an odd device (Xcode 27.1's
+                  # iOS 27.1 had just the foldable iPhone Duo).
+                  key = (-rank, version)
                   if best is None or key > best[0]:
                       best = (key, device["udid"])
           print(best[1] if best else "")
