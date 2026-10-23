@@ -16,6 +16,10 @@ struct SigningInfo: Equatable, Sendable {
     var iCloudContainers: [String] = []
     /// Whether the profile allows CloudKit.
     var allowsCloudKit = false
+    /// Whether this copy carries a provisioning profile at all. Copies from
+    /// the App Store and TestFlight don't: Apple signs them with the
+    /// entitlements they were submitted with.
+    var hasProfile = false
 
     static var current: SigningInfo {
         var info = SigningInfo(
@@ -32,6 +36,7 @@ struct SigningInfo: Equatable, Sendable {
     /// Fills in the profile's details. A profile is a signed (CMS) envelope
     /// around an XML property list.
     mutating func read(profile data: Data) {
+        hasProfile = true
         guard let start = data.range(of: Data("<?xml".utf8)),
               let end = data.range(of: Data("</plist>".utf8), in: start.lowerBound..<data.endIndex),
               let plist = try? PropertyListSerialization.propertyList(from: data[start.lowerBound..<end.upperBound], format: nil) as? [String: Any]
@@ -53,11 +58,14 @@ struct SigningInfo: Equatable, Sendable {
     }
 
     /// Why the App Library can't sync through iCloud in this copy, or nil
-    /// when it can. Feather signs with the profile's entitlements, so the
+    /// when it can. A copy from the App Store or TestFlight can: it's signed
+    /// with the app's own entitlements, container included. A re-signed
+    /// copy (Feather) is signed with its profile's entitlements, so the
     /// profile has to include the container.
     var iCloudProblem: String? {
         guard let container = iCloudContainer else { return "This copy has no bundle ID." }
-        guard applicationIdentifier != nil else { return "This copy has no provisioning profile." }
+        guard hasProfile else { return nil }
+        guard applicationIdentifier != nil else { return "This copy's provisioning profile couldn't be read." }
         guard allowsCloudKit, iCloudContainers.contains(container) else {
             return "Its provisioning profile doesn't include iCloud with the container \(container)."
         }

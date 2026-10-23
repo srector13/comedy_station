@@ -50,6 +50,42 @@ struct TMDBTests {
         #expect(v4.value(forHTTPHeaderField: "Authorization") == "Bearer eyJhbGciOiJIUzI1NiJ9.e30.sig")
     }
 
+    @Test func theRelayGetsNoKey() throws {
+        let relay = try #require(URL(string: "https://relay.example/3/"))
+        let request = TMDBClient(access: .relay(relay)).request("discover/movie", ["page": "2"])
+        #expect(request.url?.absoluteString == "https://relay.example/3/discover/movie?page=2")
+        #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
+        #expect(TMDBClient(access: .relay(relay)).request("movie/7/credits").url?.absoluteString == "https://relay.example/3/movie/7/credits")
+    }
+
+    @Test func theBuildsRelayComesFromItsInfoPlist() {
+        #expect(TMDBAccess.builtInRelay(["StandupTMDBRelay": "standup-tmdb-relay.someone.workers.dev"])?.absoluteString == "https://standup-tmdb-relay.someone.workers.dev/3/")
+        #expect(TMDBAccess.builtInRelay(["StandupTMDBRelay": "https://relay.example/"])?.absoluteString == "https://relay.example/3/")
+        // An empty build setting, an unexpanded one, or none: no relay.
+        #expect(TMDBAccess.builtInRelay(["StandupTMDBRelay": ""]) == nil)
+        #expect(TMDBAccess.builtInRelay(["StandupTMDBRelay": "$(STANDUP_TMDB_RELAY)"]) == nil)
+        #expect(TMDBAccess.builtInRelay([:]) == nil)
+    }
+
+    @MainActor @Test func theRelayComesBeforeASavedKey() async throws {
+        let relay = try #require(URL(string: "https://relay.example/3/"))
+        #expect(TMDBDiscovery(keys: MemoryKeyStore("abc"), relay: relay).access == .relay(relay))
+        #expect(TMDBDiscovery(keys: MemoryKeyStore("abc"), relay: nil).access == .key("abc"))
+        #expect(TMDBDiscovery(keys: MemoryKeyStore(), relay: nil).access == nil)
+        #expect(SpecialsSettings(store: MemoryKeyStore(), builtIn: true, check: { _ in }).isAvailable)
+        #expect(!SpecialsSettings(store: MemoryKeyStore(), check: { _ in }).isAvailable)
+    }
+
+    @Test func pagesComeInOrderWithoutRepeats() async throws {
+        let special: @Sendable (Int) -> TMDBSpecial = { TMDBSpecial(id: $0, title: "\($0)", releaseDate: nil, popularity: 0) }
+        let list = try await TMDBDiscovery.pages(3) { page in
+            // Later pages answer first.
+            try await Task.sleep(for: .milliseconds(10 * (4 - page)))
+            return page == 2 ? [special(3), special(4)] : page == 1 ? [special(1), special(2), special(3)] : [special(5)]
+        }
+        #expect(list.map(\.id) == [1, 2, 3, 4, 5])
+    }
+
     @Test func datesAreDays() throws {
         let date = try #require(TMDBClient.day(from: "2026-04-30"))
         #expect(TMDBClient.day(date) == "2026-04-30")

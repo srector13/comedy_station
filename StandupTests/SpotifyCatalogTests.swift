@@ -55,6 +55,56 @@ struct SpotifyCatalogTests {
 
     let catalog = SpotifyCatalog(api: Self.api(), confirming: CatalogComedianCheck(catalog: MockCatalog()), matchesURL: nil)
 
+    /// Every request a catalog makes, by path.
+    final class RequestLog: @unchecked Sendable {
+        private let lock = NSLock()
+        private var paths: [String] = []
+
+        func record(_ path: String) {
+            lock.withLock { paths.append(path) }
+        }
+
+        func count(_ path: String) -> Int {
+            lock.withLock { paths.filter { $0 == path }.count }
+        }
+    }
+
+    @Test func theSameSearchAtOnceIsAskedForOnce() async throws {
+        let log = RequestLog()
+        let api = SpotifyWebAPI(token: { "token" }, transport: { request in
+            let path = request.url?.path ?? ""
+            log.record(path)
+            // Slow enough that the second search starts before the first ends.
+            try await Task.sleep(for: .milliseconds(50))
+            let body = Self.answers[path] ?? "{}"
+            return (Data(body.utf8), HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        })
+        let catalog = SpotifyCatalog(api: api, confirming: CatalogComedianCheck(catalog: MockCatalog()), matchesURL: nil)
+        async let first = catalog.search("comedy")
+        async let second = catalog.search("comedy")
+        let (a, b) = try await (first, second)
+        #expect(a.comedians.map(\.id) == b.comedians.map(\.id))
+        // Two pages, once.
+        #expect(log.count("/v1/search") == 2)
+    }
+
+    @Test func aCancelledSearchDoesntFailTheOneWaitingForIt() async throws {
+        let api = SpotifyWebAPI(token: { "token" }, transport: { request in
+            try await Task.sleep(for: .milliseconds(100))
+            let body = Self.answers[request.url?.path ?? ""] ?? "{}"
+            return (Data(body.utf8), HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        })
+        let catalog = SpotifyCatalog(api: api, confirming: CatalogComedianCheck(catalog: MockCatalog()), matchesURL: nil)
+        let first = Task { try await catalog.search("comedy") }
+        try await Task.sleep(for: .milliseconds(20))
+        async let second = catalog.search("comedy")
+        try await Task.sleep(for: .milliseconds(20))
+        // Its screen went away; the one waiting for it still gets an answer.
+        first.cancel()
+        let found = try await second
+        #expect(!found.comedians.isEmpty)
+    }
+
     @Test func searchKeepsOnlyComedians() async throws {
         let found = try await catalog.search("comedy")
         // Taylor by her Spotify genres; Maya, who has none on Spotify, by
@@ -110,7 +160,7 @@ struct SpotifyCatalogTests {
 
 /// TMDB lists for the Spotify route's Home, without the network.
 struct FakeTMDB: TMDBListing {
-    var key: String? = "key"
+    var access: TMDBAccess? = .key("key")
     var lists: [DiscoverShelf: [TMDBSpecial]] = [:]
     var names: [String] = []
     var services: [BrowseCategory] = []
@@ -179,7 +229,7 @@ struct SpotifyHomeTests {
 
     @Test func nothingWithoutATMDBKey() async throws {
         var tmdb = Self.tmdb
-        tmdb.key = nil
+        tmdb.access = nil
         #expect(try await catalog(tmdb: tmdb).discover(.new).isEmpty)
         #expect(try await catalog(tmdb: tmdb).trendingComedians().isEmpty)
         #expect(try await catalog(tmdb: tmdb).browseCategories().isEmpty)

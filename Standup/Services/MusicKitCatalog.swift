@@ -3,10 +3,11 @@ import Foundation
 import MusicKit
 
 /// The live catalog: MusicKit requests, the comedy filter, and a small
-/// in-memory cache so going back and forth between pages doesn't refetch.
+/// in-memory cache so going back and forth between pages doesn't refetch
+/// (and a request already on its way is shared, not made twice).
 actor MusicKitCatalog: CatalogProviding {
     private var cache = ResponseCache(lifetime: 10 * 60)
-    /// TMDB's specials for Home's shelves, with the person's key.
+    /// TMDB's specials for Home's shelves.
     private let tmdb: any TMDBListing
     /// TMDB specials already matched to Apple Music, kept between launches.
     private var matches = SpecialMatchStore(url: SpecialMatchStore.defaultURL)
@@ -141,8 +142,8 @@ actor MusicKitCatalog: CatalogProviding {
     /// Apple's Comedy chart, which also fills in for TMDB. Where neither has
     /// any comedy, searches for comedy fill that section instead.
     func charts() async throws -> ComedyCharts {
-        let tmdbKey = tmdb.key
-        return try await cached("charts:\(tmdbKey ?? "")") {
+        let tmdbAccess = tmdb.access
+        return try await cached("charts:\(tmdbAccess?.cacheID ?? "")") {
             var charts = ComedyCharts()
             var notes: [String] = []
             do {
@@ -169,7 +170,7 @@ actor MusicKitCatalog: CatalogProviding {
                 if let setup = MusicKitSetupError(error) { throw setup }
                 notes.append("The Comedy chart didn't load (\(error.localizedDescription)).")
             }
-            if tmdbKey != nil {
+            if tmdbAccess != nil {
                 charts.newReleases = (try? await discover(.new)) ?? []
                 // A handful at least, or Apple's chart reads better.
                 let popular = (try? await discover(.popular)) ?? []
@@ -206,7 +207,7 @@ actor MusicKitCatalog: CatalogProviding {
 
     /// Streaming services, then decades.
     func browseCategories() async throws -> [BrowseCategory] {
-        guard tmdb.key != nil else { return [] }
+        guard tmdb.access != nil else { return [] }
         return ((try? await tmdb.streamingServices()) ?? []) + BrowseCategory.decades
     }
 
@@ -217,8 +218,8 @@ actor MusicKitCatalog: CatalogProviding {
     /// TMDB's specials for a list, each as its Apple Music album, in the
     /// list's order (or newest first). Specials without one are left out.
     private func matched(_ name: String, newestFirst: Bool, specials: () async throws -> [TMDBSpecial]) async throws -> [ComedyAlbum] {
-        guard let key = tmdb.key else { return [] }
-        return try await cached("\(name):\(key)") {
+        guard let access = tmdb.access else { return [] }
+        return try await cached("\(name):\(access.cacheID)") {
             let list = try await specials()
             var albums = await inOrder(list, width: 6) { [self] special in
                 await appleMusicVersion(of: special)
@@ -237,8 +238,8 @@ actor MusicKitCatalog: CatalogProviding {
     /// first, as Apple Music comedians: even when that special isn't on
     /// Apple Music, they usually are.
     func trendingComedians() async throws -> [ComedyArtist] {
-        guard let key = tmdb.key else { return [] }
-        return try await cached("discover:comedians:\(key)") {
+        guard let access = tmdb.access else { return [] }
+        return try await cached("discover:comedians:\(access.cacheID)") {
             let names = await tmdb.trendingNames()
             var ids = Set<String>()
             let comedians = await inOrder(names, width: 6) { [self] name in await appleComedian(named: name) }
@@ -266,7 +267,7 @@ actor MusicKitCatalog: CatalogProviding {
             asked = true
             match = best(albums)
         }
-        if match == nil, let found = try? await results(for: "\(comedian) \(title)") {
+        if match == nil, let found = try? await lookup("\(comedian) \(title)") {
             asked = true
             match = best(found.specials)
         }
@@ -278,9 +279,26 @@ actor MusicKitCatalog: CatalogProviding {
 
     /// The Apple Music comedian with exactly this name.
     private func appleComedian(named name: String) async -> ComedyArtist? {
-        guard let found = try? await results(for: name) else { return nil }
+        guard let found = try? await lookup(name) else { return nil }
         let target = SpecialMatcher.normalized(name)
         return found.comedians.first { SpecialMatcher.normalized($0.name) == target }
+    }
+
+    /// Comedians and specials only, for matching TMDB's lists: lighter than
+    /// `results(for:)`, which also loads every song's album to sort out the
+    /// comedy bits.
+    private func lookup(_ term: String) async throws -> SearchResults {
+        try await cached("lookup:\(term.lowercased())") {
+            var request = MusicCatalogSearchRequest(term: term, types: [Artist.self, Album.self])
+            request.limit = 25
+            let response = try await request.response()
+            let albums = response.albums.map(ComedyAlbum.init)
+            return SearchResults(
+                comedians: ComedyFilter.comedians(response.artists.map(ComedyArtist.init), specials: albums),
+                specials: ComedyFilter.keep(albums),
+                bits: []
+            )
+        }
     }
 
     /// A comedian's comedy albums, for matching: lighter than their page.
@@ -348,15 +366,30 @@ actor MusicKitCatalog: CatalogProviding {
         if let hit: Value = cache.value(for: key) {
             return hit
         }
+        // Already on its way: wait for that answer. If that load was
+        // cancelled (its screen went away) and this ask wasn't, load here.
+        if cache.isLoading(key) {
+            do {
+                let shared = try await withCheckedThrowingContinuation { cache.wait(for: key, $0) }
+                if let shared = shared as? Value {
+                    return shared
+                }
+            } catch let error where ResponseCache.isCancellation(error) && !Task.isCancelled {}
+        }
+        cache.startLoading(key)
         do {
             let value = try await load()
-            cache.store(value, for: key)
+            cache.finishLoading(key, with: .success(value))
             return value
         } catch {
             // Say why, and how this copy is signed, rather than MusicKit's
             // bare "Failed to request developer token".
-            if let setup = MusicKitSetupError(error) { throw setup }
-            throw error
+            var reported: any Error = error
+            if let setup = MusicKitSetupError(error) {
+                reported = setup
+            }
+            cache.finishLoading(key, with: .failure(reported))
+            throw reported
         }
     }
 }

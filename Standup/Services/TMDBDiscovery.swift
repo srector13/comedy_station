@@ -4,8 +4,9 @@ import Foundation
 /// shelf's list and the comedian behind each special. The Apple Music and
 /// Spotify catalogs each find their own versions.
 protocol TMDBListing: Sendable {
-    /// The person's TMDB key, from Settings; nothing is listed without one.
-    var key: String? { get }
+    /// How TMDB is reached: Standup's relay, or the person's own key. Nil
+    /// when neither is there, and then nothing is listed.
+    var access: TMDBAccess? { get }
     /// A shelf's specials, most popular (or best rated) first.
     func specials(for shelf: DiscoverShelf) async throws -> [TMDBSpecial]
     /// The comedian a special names before its colon, or else its
@@ -20,47 +21,47 @@ protocol TMDBListing: Sendable {
     func specials(in category: BrowseCategory) async throws -> [TMDBSpecial]
 }
 
-/// `TMDBListing` from TMDB, with answers kept for ten minutes.
+/// `TMDBListing` from TMDB, with answers kept for ten minutes. A request
+/// already on its way is shared, not made again (Home's shelves and
+/// Trending Comedians ask for the same lists at once).
 actor TMDBDiscovery: TMDBListing {
     private let keys: any KeyStoring
+    private let relay: URL?
     private var cache = ResponseCache(lifetime: 10 * 60)
 
-    init(keys: any KeyStoring) {
+    /// Through `relay` when the build has one; otherwise with the key
+    /// Settings keeps.
+    init(keys: any KeyStoring, relay: URL? = TMDBAccess.builtInRelay()) {
         self.keys = keys
+        self.relay = relay
     }
 
-    nonisolated var key: String? {
-        keys.load()
+    nonisolated var access: TMDBAccess? {
+        if let relay { return .relay(relay) }
+        return keys.load().map(TMDBAccess.key)
     }
 
     /// Where streaming services are looked up: the device's region.
     nonisolated let region = Locale.current.region?.identifier ?? "US"
 
     /// Three pages of twenty (two for the best rated, which need fifty
-    /// votes to count).
+    /// votes to count), asked for together.
     func specials(for shelf: DiscoverShelf) async throws -> [TMDBSpecial] {
-        guard let key else { return [] }
-        let client = TMDBClient(key: key)
-        return try await cached("list:\(shelf.rawValue):\(key)") {
-            let keyword = try await self.cached("keyword:\(key)") { try await client.standUpKeywordID() }
+        guard let access else { return [] }
+        let client = TMDBClient(access: access)
+        return try await cached("list:\(shelf.rawValue):\(access.cacheID)") {
+            let keyword = try await self.keyword(client)
             let now = Date.now
-            var specials: [TMDBSpecial] = []
-            switch shelf {
-            case .new:
-                for page in 1...3 {
-                    specials += try await client.specials(keyword: keyword, from: now.addingTimeInterval(-365 * 86_400), to: now, page: page)
-                }
-            case .popular:
-                for page in 1...3 {
-                    specials += try await client.specials(keyword: keyword, from: now.addingTimeInterval(-3 * 365 * 86_400), to: now, page: page)
-                }
-            case .essential:
-                for page in 1...2 {
-                    specials += try await client.specials(keyword: keyword, from: nil, to: now, order: .rated, minimumVotes: 50, page: page)
+            return try await Self.pages(shelf == .essential ? 2 : 3) { page in
+                switch shelf {
+                case .new:
+                    return try await client.specials(keyword: keyword, from: now.addingTimeInterval(-365 * 86_400), to: now, page: page)
+                case .popular:
+                    return try await client.specials(keyword: keyword, from: now.addingTimeInterval(-3 * 365 * 86_400), to: now, page: page)
+                case .essential:
+                    return try await client.specials(keyword: keyword, from: nil, to: now, order: .rated, minimumVotes: 50, page: page)
                 }
             }
-            var seen = Set<Int>()
-            return specials.filter { seen.insert($0.id).inserted }
         }
     }
 
@@ -68,19 +69,27 @@ actor TMDBDiscovery: TMDBListing {
         if let comedian = special.titleParts?.comedian {
             return comedian
         }
-        guard let key else { return nil }
-        let client = TMDBClient(key: key)
+        guard let access else { return nil }
+        let client = TMDBClient(access: access)
         return try? await cached("comedian:\(special.id)") { try await client.comedian(ofSpecial: special.id) }
     }
 
-    /// Up to 24, one per comedian.
+    /// Up to 24, one per comedian, most popular first. Names TMDB has to
+    /// be asked for (titles without one) are asked for twelve specials at a
+    /// time, until there are enough.
     func trendingNames() async -> [String] {
-        let new = (try? await specials(for: .new)) ?? []
-        let popular = (try? await specials(for: .popular)) ?? []
+        async let new = specials(for: .new)
+        async let popular = specials(for: .popular)
+        var ranked = ArraySlice((((try? await new) ?? []) + ((try? await popular) ?? [])).sorted { $0.popularity > $1.popularity })
         var names: [String] = []
         var seen = Set<String>()
-        for special in (new + popular).sorted(by: { $0.popularity > $1.popularity }) where names.count < 24 {
-            if let name = await comedianName(of: special), seen.insert(SpecialMatcher.normalized(name)).inserted {
+        while names.count < 24, !ranked.isEmpty {
+            let batch = Array(ranked.prefix(12))
+            ranked = ranked.dropFirst(12)
+            let found = await inOrder(batch, width: 6) { [self] special in
+                await comedianName(of: special)
+            }
+            for name in found where names.count < 24 && seen.insert(SpecialMatcher.normalized(name)).inserted {
                 names.append(name)
             }
         }
@@ -88,33 +97,52 @@ actor TMDBDiscovery: TMDBListing {
     }
 
     func streamingServices() async throws -> [BrowseCategory] {
-        guard let key else { return [] }
-        let client = TMDBClient(key: key), region = self.region
-        return try await cached("services:\(region):\(key)") {
+        guard let access else { return [] }
+        let client = TMDBClient(access: access), region = self.region
+        return try await cached("services:\(region):\(access.cacheID)") {
             TMDBClient.streamingServices(from: try await client.watchProviders(region: region))
         }
     }
 
-    /// Two pages of twenty.
+    /// Two pages of twenty, asked for together.
     func specials(in category: BrowseCategory) async throws -> [TMDBSpecial] {
-        guard let key else { return [] }
-        let client = TMDBClient(key: key)
-        return try await cached("browse:\(category.id):\(region):\(key)") {
-            let keyword = try await self.cached("keyword:\(key)") { try await client.standUpKeywordID() }
+        guard let access else { return [] }
+        let client = TMDBClient(access: access), region = self.region
+        return try await cached("browse:\(category.id):\(region):\(access.cacheID)") {
+            let keyword = try await self.keyword(client)
             let now = Date.now
-            var specials: [TMDBSpecial] = []
-            for page in 1...2 {
+            return try await Self.pages(2) { page in
                 switch category {
                 case .streaming(let id, _, _):
-                    specials += try await client.specials(keyword: keyword, from: nil, to: now, streaming: .init(provider: id, region: region), page: page)
+                    return try await client.specials(keyword: keyword, from: nil, to: now, streaming: .init(provider: id, region: region), page: page)
                 case .decade(let start):
                     let (from, to) = Self.window(ofDecade: start, now: now)
-                    specials += try await client.specials(keyword: keyword, from: from, to: to, order: .votes, page: page)
+                    return try await client.specials(keyword: keyword, from: from, to: to, order: .votes, page: page)
                 }
             }
-            var seen = Set<Int>()
-            return specials.filter { seen.insert($0.id).inserted }
         }
+    }
+
+    /// TMDB's stand-up keyword, asked for once.
+    private func keyword(_ client: TMDBClient) async throws -> Int {
+        try await cached("keyword:\(client.access.cacheID)") { try await client.standUpKeywordID() }
+    }
+
+    /// Pages 1 through `count` of a list, asked for together, in page
+    /// order without repeats.
+    static func pages(_ count: Int, _ page: @escaping @Sendable (Int) async throws -> [TMDBSpecial]) async throws -> [TMDBSpecial] {
+        let pages = try await withThrowingTaskGroup(of: (Int, [TMDBSpecial]).self) { group in
+            for number in 1...count {
+                group.addTask { (number, try await page(number)) }
+            }
+            var pages: [Int: [TMDBSpecial]] = [:]
+            for try await (number, specials) in group {
+                pages[number] = specials
+            }
+            return pages
+        }
+        var seen = Set<Int>()
+        return (1...count).flatMap { pages[$0] ?? [] }.filter { seen.insert($0.id).inserted }
     }
 
     /// January 1 of the decade's first year to December 31 of its last, or
@@ -129,9 +157,25 @@ actor TMDBDiscovery: TMDBListing {
         if let hit: Value = cache.value(for: key) {
             return hit
         }
-        let value = try await load()
-        cache.store(value, for: key)
-        return value
+        // Already on its way: wait for that answer. If that load was
+        // cancelled (its screen went away) and this ask wasn't, load here.
+        if cache.isLoading(key) {
+            do {
+                let shared = try await withCheckedThrowingContinuation { cache.wait(for: key, $0) }
+                if let shared = shared as? Value {
+                    return shared
+                }
+            } catch let error where ResponseCache.isCancellation(error) && !Task.isCancelled {}
+        }
+        cache.startLoading(key)
+        do {
+            let value = try await load()
+            cache.finishLoading(key, with: .success(value))
+            return value
+        } catch {
+            cache.finishLoading(key, with: .failure(error))
+            throw error
+        }
     }
 }
 

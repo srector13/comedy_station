@@ -16,6 +16,14 @@ actor SpotifyCatalog: CatalogProviding {
     private var cache = ResponseCache(lifetime: 10 * 60)
     /// TMDB specials already matched to Spotify, kept between launches.
     private var matches: SpecialMatchStore
+    /// Artists' comedy genres, by URI, for as long as the app runs: an
+    /// artist's genres rarely change, and Development Mode has no request
+    /// for several artists at once, so each is one request.
+    private var comedianGenres: [String: [String]] = [:]
+    /// Artists found not to be comedians.
+    private var notComedians: Set<String> = []
+    /// Comedians confirmed (or not) by `confirming`, by normalized name.
+    private var confirmed: [String: Bool] = [:]
 
     /// How many of a shelf's TMDB specials are looked for on Spotify,
     /// which limits how fast an app in Development Mode may ask.
@@ -36,19 +44,21 @@ actor SpotifyCatalog: CatalogProviding {
         return ComedyFilter.keep(hits)
     }
 
-    /// Two pages of ten (Development Mode's limit), through the filter.
+    /// Two pages of ten (Development Mode's limit), asked for together,
+    /// through the filter.
     func search(_ term: String) async throws -> SearchResults {
-        try await cached("search:\(term.lowercased())") {
-            var found = SearchResults()
-            for offset in [0, SpotifyWebAPI.searchLimit] {
-                let response = try await api.search(term, offset: offset)
-                found.merge(try await comedy(in: response))
-            }
+        try await cached("search:\(term.lowercased())") { [api] in
+            async let first = api.search(term, offset: 0)
+            async let second = api.search(term, offset: SpotifyWebAPI.searchLimit)
+            var found = try await comedy(in: first)
+            found.merge(try await comedy(in: second))
             return found
         }
     }
 
     private func comedy(in response: SpotifyWebAPI.SearchResponse) async throws -> SearchResults {
+        // The albums' and tracks' artists, looked up a few at a time first.
+        await lookUpGenres(of: (response.albums?.items ?? []).compactMap(\.artists.first) + (response.tracks?.items ?? []).compactMap(\.album.artists.first))
         var results = SearchResults()
         for artist in response.artists?.items ?? [] {
             if let genres = await comedyGenres(of: artist) {
@@ -126,7 +136,7 @@ actor SpotifyCatalog: CatalogProviding {
 
     /// Streaming services, then decades.
     func browseCategories() async throws -> [BrowseCategory] {
-        guard let tmdb, tmdb.key != nil else { return [] }
+        guard let tmdb, tmdb.access != nil else { return [] }
         return ((try? await tmdb.streamingServices()) ?? []) + BrowseCategory.decades
     }
 
@@ -139,8 +149,8 @@ actor SpotifyCatalog: CatalogProviding {
     /// Spotify album, in the list's order (or newest first). Specials
     /// without one are left out.
     private func matched(_ name: String, newestFirst: Bool, specials: () async throws -> [TMDBSpecial]) async throws -> [ComedyAlbum] {
-        guard let tmdb, let key = tmdb.key else { return [] }
-        return try await cached("\(name):\(key)") {
+        guard let tmdb, let access = tmdb.access else { return [] }
+        return try await cached("\(name):\(access.cacheID)") {
             let list = Array(try await specials().prefix(Self.shelfLimit))
             var albums = await inOrder(list, width: 3) { [self] special in
                 await spotifyVersion(of: special, tmdb: tmdb)
@@ -158,8 +168,8 @@ actor SpotifyCatalog: CatalogProviding {
     /// The comedians behind TMDB's new and popular specials, as Spotify
     /// artists.
     func trendingComedians() async throws -> [ComedyArtist] {
-        guard let tmdb, let key = tmdb.key else { return [] }
-        return try await cached("discover:comedians:\(key)") {
+        guard let tmdb, let access = tmdb.access else { return [] }
+        return try await cached("discover:comedians:\(access.cacheID)") {
             let names = await tmdb.trendingNames()
             var ids = Set<String>()
             let comedians = await inOrder(names, width: 3) { [self] name in await spotifyComedian(named: name) }
@@ -217,27 +227,45 @@ actor SpotifyCatalog: CatalogProviding {
         return await isConfirmedComedian(artist.name) ? ["Comedy"] : nil
     }
 
+    /// Only answers are kept: an artist that couldn't be loaded is asked
+    /// for again.
     private func comedyGenres(ofArtist artist: SpotifyWebAPI.SimpleArtist?) async -> [String]? {
         guard let artist else { return nil }
-        let key = "genres:\(artist.uri)"
-        if let known: [String]? = cache.value(for: key) {
+        if let known = comedianGenres[artist.uri] {
             return known
         }
-        guard let full = try? await api.artist(artist.uri) else { return nil }
+        if notComedians.contains(artist.uri) {
+            return nil
+        }
+        guard let full = try? await cached("artist:\(artist.uri)", load: { try await api.artist(artist.uri) }) else { return nil }
         let genres = await comedyGenres(of: full)
-        cache.store(genres, for: key)
+        if let genres {
+            comedianGenres[artist.uri] = genres
+        } else {
+            notComedians.insert(artist.uri)
+        }
         return genres
+    }
+
+    /// Looks up the genres of artists not known yet, four at a time.
+    private func lookUpGenres(of artists: [SpotifyWebAPI.SimpleArtist]) async {
+        var seen = Set<String>()
+        let unknown = artists.filter { comedianGenres[$0.uri] == nil && !notComedians.contains($0.uri) && seen.insert($0.uri).inserted }
+        guard unknown.count > 1 else { return }
+        _ = await inOrder(unknown, width: 4) { [self] artist in
+            await comedyGenres(ofArtist: artist)
+        }
     }
 
     /// Whether `confirming` knows a comedian of this name. Only answers
     /// are kept, so one it couldn't give is asked for again.
     private func isConfirmedComedian(_ name: String) async -> Bool {
-        let key = "confirmed:\(SpecialMatcher.normalized(name))"
-        if let known: Bool = cache.value(for: key) {
+        let key = SpecialMatcher.normalized(name)
+        if let known = confirmed[key] {
             return known
         }
         guard let isComedian = await confirming.isComedian(named: name) else { return false }
-        cache.store(isComedian, for: key)
+        confirmed[key] = isComedian
         return isComedian
     }
 
@@ -245,8 +273,24 @@ actor SpotifyCatalog: CatalogProviding {
         if let hit: Value = cache.value(for: key) {
             return hit
         }
-        let value = try await load()
-        cache.store(value, for: key)
-        return value
+        // Already on its way: wait for that answer. If that load was
+        // cancelled (its screen went away) and this ask wasn't, load here.
+        if cache.isLoading(key) {
+            do {
+                let shared = try await withCheckedThrowingContinuation { cache.wait(for: key, $0) }
+                if let shared = shared as? Value {
+                    return shared
+                }
+            } catch let error where ResponseCache.isCancellation(error) && !Task.isCancelled {}
+        }
+        cache.startLoading(key)
+        do {
+            let value = try await load()
+            cache.finishLoading(key, with: .success(value))
+            return value
+        } catch {
+            cache.finishLoading(key, with: .failure(error))
+            throw error
+        }
     }
 }

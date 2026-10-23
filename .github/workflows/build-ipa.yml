@@ -63,8 +63,27 @@ jobs:
       - name: Audit (no Apple Music library writes)
         run: scripts/audit_no_library_writes.sh
 
+      - name: Compute release tag
+        id: tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The checkout is shallow and tagless; fetch every tag first.
+          git fetch --tags --force --quiet origin
+          LAST="$(git tag -l 'v1.0.*' | sed -n 's/^v1\.0\.\([0-9][0-9]*\)$/\1/p' | sort -n | tail -n 1)"
+          NUMBER="$(( ${LAST:-0} + 1 ))"
+          TAG="v1.0.${NUMBER}"
+          echo "Highest existing v1.0.* build: ${LAST:-none}; this build: ${TAG}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          # The app carries its release: version 1.0.N, build N.
+          echo "version=1.0.${NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "build=${NUMBER}" >> "$GITHUB_OUTPUT"
+
       - name: Build (code signing disabled)
         shell: bash
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          BUILD: ${{ steps.tag.outputs.build }}
         run: |
           set -euo pipefail
           # -derivedDataPath pins the product to
@@ -74,6 +93,7 @@ jobs:
             -destination 'generic/platform=iOS' \
             -derivedDataPath ./dd \
             -skipPackagePluginValidation -skipMacroValidation \
+            MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             2>&1 | tee build.log
 
@@ -98,6 +118,9 @@ jobs:
           fi
           echo "PASS: ${INFO} carries NSAppleMusicUsageDescription"
           echo "Bundle ID: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO")"
+          echo "Version: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO") ($(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$INFO"))"
+          RELAY="$(/usr/libexec/PlistBuddy -c 'Print :StandupTMDBRelay' "$INFO" 2>/dev/null || true)"
+          echo "TMDB relay: ${RELAY:-none (people add their own TMDB key)}"
           zip -qry output/Standup-unsigned.ipa Payload
           ls -la output
 
@@ -108,18 +131,6 @@ jobs:
           path: output/*.ipa
           if-no-files-found: error
           retention-days: 14
-
-      - name: Compute release tag
-        id: tag
-        shell: bash
-        run: |
-          set -euo pipefail
-          # The checkout is shallow and tagless; fetch every tag first.
-          git fetch --tags --force --quiet origin
-          LAST="$(git tag -l 'v1.0.*' | sed -n 's/^v1\.0\.\([0-9][0-9]*\)$/\1/p' | sort -n | tail -n 1)"
-          TAG="v1.0.$(( ${LAST:-0} + 1 ))"
-          echo "Highest existing v1.0.* build: ${LAST:-none}; this build: ${TAG}"
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Publish GitHub Release
         shell: bash

@@ -243,7 +243,7 @@ struct HomeView: View {
 
     private var spotifyNeedsSpecials: some View {
         Group {
-            if specials.hasKey {
+            if specials.isAvailable {
                 ContentUnavailableView(
                     "No Specials Matched",
                     systemImage: "magnifyingglass",

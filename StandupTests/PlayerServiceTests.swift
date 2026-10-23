@@ -1,6 +1,12 @@
 import Foundation
+import Observation
 import Testing
 @testable import Standup
+
+/// Set once something happens (an observation's change, for one).
+final class Flag: @unchecked Sendable {
+    var isSet = false
+}
 
 /// A clock tests move by hand.
 @MainActor
@@ -233,12 +239,29 @@ struct PlayerServiceTests {
         #expect(saved.title == special.title)
     }
 
-    @Test func savesEveryTenSecondsWhilePlaying() async throws {
+    @Test func savesEveryThirtySecondsWhilePlaying() async throws {
         await player.play(album: special)
         advance(4)
         #expect(store.progress(for: special.id)?.lastPosition == 0)
+        advance(20)
+        #expect(store.progress(for: special.id)?.lastPosition == 0)
         advance(7)
-        #expect(abs((try #require(store.progress(for: special.id))).lastPosition - 11) < 0.01)
+        #expect(abs((try #require(store.progress(for: special.id))).lastPosition - 31) < 0.01)
+    }
+
+    @Test func aPausedPlayerDoesntRedrawOnEveryTick() async {
+        await player.play(album: special)
+        player.pause()
+        let changed = Flag()
+        withObservationTracking {
+            _ = player.isPlaying
+            _ = player.elapsed
+        } onChange: {
+            changed.isSet = true
+        }
+        player.sync()
+        player.sync()
+        #expect(!changed.isSet)
     }
 
     @Test func playResumesWhereItWasLeft() async {

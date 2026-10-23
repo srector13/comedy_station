@@ -424,6 +424,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Standup/Resources/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Standup;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -436,6 +437,8 @@
 				);
 				MARKETING_VERSION = 1.0.0;
 				CODE_SIGN_ENTITLEMENTS = Standup/Resources/Standup.entitlements;
+				/* Standup's TMDB relay (relay/, .github/workflows/deploy-relay.yml): its host, or empty for a build where people add their own TMDB key. */
+				STANDUP_TMDB_RELAY = "";
 				PRODUCT_BUNDLE_IDENTIFIER = PolarReality.Standup;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -455,6 +458,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Standup/Resources/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Standup;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -467,6 +471,8 @@
 				);
 				MARKETING_VERSION = 1.0.0;
 				CODE_SIGN_ENTITLEMENTS = Standup/Resources/Standup.entitlements;
+				/* Standup's TMDB relay (relay/, .github/workflows/deploy-relay.yml): its host, or empty for a build where people add their own TMDB key. */
+				STANDUP_TMDB_RELAY = "";
 				PRODUCT_BUNDLE_IDENTIFIER = PolarReality.Standup;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;

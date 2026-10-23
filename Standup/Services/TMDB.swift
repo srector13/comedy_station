@@ -57,27 +57,75 @@ enum TMDBError: LocalizedError, Equatable {
     }
 }
 
-/// The few TMDB requests Standup makes. The key is the person's own, from
-/// Settings: a v3 API key, or a v4 read access token.
+/// How Standup reaches TMDB.
+enum TMDBAccess: Equatable, Sendable {
+    /// Standup's relay (`relay/` in the repository), which holds the
+    /// project's TMDB key, so nobody has to paste one. Its base URL.
+    case relay(URL)
+    /// The person's own key, from Settings (builds without a relay): a v3
+    /// API key, or a v4 read access token.
+    case key(String)
+
+    /// For cache keys: answers made one way aren't reused the other.
+    var cacheID: String {
+        switch self {
+        case .relay(let url): "relay:\(url.absoluteString)"
+        case .key(let key): "key:\(key)"
+        }
+    }
+
+    /// The relay this build was made with: the `StandupTMDBRelay` host in
+    /// its Info.plist (the `STANDUP_TMDB_RELAY` build setting), or nil
+    /// when it has none.
+    static func builtInRelay(_ info: [String: Any]? = Bundle.main.infoDictionary) -> URL? {
+        guard var host = (info?["StandupTMDBRelay"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !host.isEmpty, !host.hasPrefix("$(")
+        else { return nil }
+        if host.hasPrefix("https://") {
+            host.removeFirst("https://".count)
+        }
+        while host.hasSuffix("/") {
+            host.removeLast()
+        }
+        return URL(string: "https://\(host)/3/")
+    }
+}
+
+/// The few TMDB requests Standup makes, through the relay or with a key.
 struct TMDBClient: Sendable {
-    var key: String
+    var access: TMDBAccess
 
     static let base = URL(string: "https://api.themoviedb.org/3/")!
 
-    /// A request with the key: as a bearer token for a v4 token (a JWT,
-    /// with dots), as `api_key` for a v3 key.
+    init(access: TMDBAccess) {
+        self.access = access
+    }
+
+    init(key: String) {
+        self.init(access: .key(key))
+    }
+
+    /// A request to the relay, which adds the key itself; or to TMDB with
+    /// the key: as a bearer token for a v4 token (a JWT, with dots), as
+    /// `api_key` for a v3 key.
     func request(_ path: String, _ query: [String: String] = [:]) -> URLRequest {
         var items = query.sorted { $0.key < $1.key }.map { URLQueryItem(name: $0.key, value: $0.value) }
-        let isToken = key.contains(".")
-        if !isToken {
+        var base = Self.base
+        var token: String?
+        switch access {
+        case .relay(let url):
+            base = url
+        case .key(let key) where key.contains("."):
+            token = key
+        case .key(let key):
             items.append(URLQueryItem(name: "api_key", value: key))
         }
-        var components = URLComponents(url: Self.base.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
-        components.queryItems = items
+        var components = URLComponents(url: base.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
+        components.queryItems = items.isEmpty ? nil : items
         var request = URLRequest(url: components.url!)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        if isToken {
-            request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        if let token {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         return request
     }

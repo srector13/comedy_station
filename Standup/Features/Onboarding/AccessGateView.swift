@@ -179,7 +179,7 @@ struct GateContent: Equatable {
             message = "Apple Music only serves the catalog to a copy of Standup signed by the team whose App ID has MusicKit turned on, under that App ID's bundle ID."
             detail = signing
             primary = .checkAgain
-            footnote = "The App ID needs MusicKit ticked under App Services. In Feather, sign with your own certificate and a profile for that App ID, and keep the bundle ID. See docs/MUSICKIT_SETUP.md."
+            footnote = "The App ID needs MusicKit ticked under App Services, and the app has to be signed with a profile for that App ID, keeping its bundle ID."
         case .unavailable(let reason):
             symbol = "wifi.exclamationmark"
             title = "Can't Reach Apple Music"

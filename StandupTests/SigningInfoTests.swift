@@ -79,6 +79,14 @@ struct SigningInfoTests {
         #expect(info.iCloudProblem != nil)
     }
 
+    /// The App Store and TestFlight embed no profile; their copies are
+    /// signed with the app's own entitlements, so they sync.
+    @Test func anAppStoreCopySyncs() {
+        let info = SigningInfo(bundleID: "PolarReality.Standup")
+        #expect(!info.hasProfile)
+        #expect(info.iCloudProblem == nil)
+    }
+
     @Test func noProfileFallsBackToTheBundleID() {
         var info = SigningInfo(bundleID: "PolarReality.Standup", expected: "68L4YU8U89.PolarReality.Standup")
         info.read(profile: Data("not a profile".utf8))

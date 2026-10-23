@@ -1,0 +1,6 @@
+# Standup's TMDB relay. Deployed by .github/workflows/deploy-relay.yml; the
+# TMDB key is a Worker secret (TMDB_KEY), never in this file.
+name = "standup-tmdb-relay"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+workers_dev = true

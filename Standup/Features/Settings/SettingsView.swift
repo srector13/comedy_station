@@ -2,8 +2,8 @@ import AuthenticationServices
 import SwiftUI
 
 /// Settings: the service Standup runs on, the TMDB key behind New and
-/// Popular Specials, the Spotify connection, iCloud sync, and credits (TMDB
-/// asks for its logo and notice).
+/// Popular Specials (in builds without Standup's relay), the Spotify
+/// connection, iCloud sync, and credits (TMDB asks for its logo and notice).
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.webAuthenticationSession) private var webAuthenticationSession
@@ -24,7 +24,10 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 serviceSection
-                specialsSection
+                // Builds with Standup's TMDB relay need no key.
+                if !specials.isBuiltIn {
+                    specialsSection
+                }
                 spotifySection
                 if library.syncStatus != .local {
                     Section("iCloud") {

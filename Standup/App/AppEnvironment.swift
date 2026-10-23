@@ -51,7 +51,7 @@ final class AppEnvironment {
             let spotifyEngine = SpotifyPlaybackEngine(account: spotify)
             self.spotifyEngine = spotifyEngine
             engine = RoutingPlaybackEngine(appleMusic: MusicKitPlaybackEngine(), spotify: spotifyEngine)
-            specials = SpecialsSettings(store: KeychainKeyStore.tmdb, check: { try await TMDBClient(key: $0).check() })
+            specials = SpecialsSettings(store: KeychainKeyStore.tmdb, builtIn: TMDBAccess.builtInRelay() != nil, check: { try await TMDBClient(key: $0).check() })
         }
         player = PlayerService(engine: engine, catalog: catalog, progressStore: library)
         restoreMockSession()

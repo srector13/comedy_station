@@ -19,6 +19,8 @@
 	</array>
 	<key>NSAppleMusicUsageDescription</key>
 	<string>Standup plays stand-up comedy from the Apple Music catalog. It never adds anything to your Apple Music library.</string>
+	<key>StandupTMDBRelay</key>
+	<string>$(STANDUP_TMDB_RELAY)</string>
 	<key>StandupExpectedAppID</key>
 	<string>$(DEVELOPMENT_TEAM).$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>UIBackgroundModes</key>

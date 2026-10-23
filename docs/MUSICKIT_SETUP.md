@@ -61,9 +61,9 @@ The foot of the Library tab says whether the library is syncing, when it last sy
 - **No data loss when you turn it on:** items saved before iCloud was set up upload on the first sync.
 - **Duplicates are merged:** the same item added on two devices is merged into one.
 
-## 4. New & Popular Specials from TMDB (optional)
+## 4. New & Popular Specials from TMDB
 
-Apple's comedy charts lean on novelty songs and decades-old albums. With a TMDB key, Home builds its shelves from The Movie Database's stand-up specials, across Netflix, Max, Prime Video and the rest:
+Apple's comedy charts lean on novelty songs and decades-old albums. Through TMDB, Home builds its shelves from The Movie Database's stand-up specials, across Netflix, Max, Prime Video and the rest:
 
 - **New Specials:** out in the last year.
 - **Popular Specials:** the most watched of the last three years.
@@ -79,12 +79,16 @@ Home also adds **More from …** for the comedians in your library.
 
 Each special is shown and played as its Apple Music album: same comedian (searched across their whole Apple Music discography), a matching title, and released around the same time. Specials without one are left out. Matches are remembered on the phone, so only the first load takes a while; a miss is tried again after a few days, because audio often comes out after the video. Bits and playlists still come from Apple's chart. On the Spotify route, the same lists are matched to Spotify albums instead.
 
+**Nobody has to paste a key** in builds made with Standup's TMDB relay: a small Cloudflare Worker that holds the project's TMDB key as a secret and answers only the requests the app makes. Setting it up once is in [TMDB_RELAY.md](TMDB_RELAY.md). The key is never built into the app or this repository, because both are public.
+
+A build without the relay (its `STANDUP_TMDB_RELAY` build setting empty) asks for a key in Settings instead:
+
 1. Create an account at [themoviedb.org](https://www.themoviedb.org), then go to **Settings → API → Request an API key**.
 2. Choose **Developer** (personal, non-commercial use) and fill in the short form.
 3. Copy the **API Key**. The longer **API Read Access Token** works too.
 4. In Standup, tap the gear on Home, Browse or Library. Under **TMDB**, paste the key and tap **Save** in the field. Standup checks it with TMDB before keeping it.
 
-The key lives in your keychain and reaches your other devices through iCloud Keychain. It's never built into the app, because the release IPAs are public. TMDB's terms ask for its logo and notice, and for credit to JustWatch, where its streaming data and the services' logos come from. All three are in Settings → About.
+That key lives in your keychain and reaches your other devices through iCloud Keychain. TMDB's terms ask for its logo and notice, and for credit to JustWatch, where its streaming data and the services' logos come from. All three are in Settings → About.
 
 ## 5. Spotify (optional)
 

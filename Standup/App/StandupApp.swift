@@ -5,6 +5,13 @@ import SwiftUI
 struct StandupApp: App {
     private let environment = AppEnvironment.shared
 
+    init() {
+        // Artwork loads through the shared URL cache, whose default holds
+        // too little to keep a few screens of covers: scrolling back would
+        // download them again.
+        URLCache.shared = URLCache(memoryCapacity: 48 * 1024 * 1024, diskCapacity: 256 * 1024 * 1024)
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView(

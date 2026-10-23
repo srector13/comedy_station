@@ -49,6 +49,7 @@ Launch arguments (also used by the UI tests):
 ## CI
 
 - **iOS Gate** (`.github/workflows/ios-gate.yml`) runs on every push, on the `xcode-27` runner. It runs the audit, the simulator build, the unsigned Release device build, unit tests, UI and screenshot tests on iPhone, and screenshots on an iPad simulator. The screenshots are uploaded as the `standup-screenshots-N` artifact.
-- **Build unsigned IPA** (`.github/workflows/build-ipa.yml`) is manual and works the same way as MyTeams' Feather route. It builds Release with signing disabled, zips `Payload/Standup.app`, and publishes a GitHub Release `v1.0.N` with `Standup-v1.0.N-unsigned.ipa`.
+- **Build unsigned IPA** (`.github/workflows/build-ipa.yml`) is manual and works the same way as MyTeams' Feather route. It builds Release with signing disabled, as version `1.0.N` (build `N`), zips `Payload/Standup.app`, and publishes a GitHub Release `v1.0.N` with `Standup-v1.0.N-unsigned.ipa`.
+- **Deploy TMDB relay** (`.github/workflows/deploy-relay.yml`) deploys `relay/`, the Cloudflare Worker that holds the TMDB key so nobody has to paste one. Manual, and on pushes to `main` that change the relay. Setup: [docs/TMDB_RELAY.md](docs/TMDB_RELAY.md).
 
-Developer-portal and Feather steps: [docs/MUSICKIT_SETUP.md](docs/MUSICKIT_SETUP.md). Playback checklist for a device: [docs/DEVICE_TEST.md](docs/DEVICE_TEST.md). How the hard rules are enforced: [docs/AUDIT.md](docs/AUDIT.md).
+Developer-portal and Feather steps: [docs/MUSICKIT_SETUP.md](docs/MUSICKIT_SETUP.md). Playback checklist for a device: [docs/DEVICE_TEST.md](docs/DEVICE_TEST.md). How the hard rules are enforced: [docs/AUDIT.md](docs/AUDIT.md). Before submitting to the App Store: [docs/APP_STORE.md](docs/APP_STORE.md).

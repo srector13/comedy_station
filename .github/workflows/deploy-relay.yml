@@ -1,0 +1,77 @@
+name: Deploy TMDB relay
+
+# Deploys relay/ (Standup's TMDB relay) as a Cloudflare Worker, with the
+# TMDB key as a Worker secret. Needs three repository secrets:
+#   CLOUDFLARE_API_TOKEN   a token from the "Edit Cloudflare Workers" template
+#   CLOUDFLARE_ACCOUNT_ID  the account ID from the Cloudflare dashboard
+#   TMDB_KEY               a TMDB v3 API key or v4 read access token
+# Runs by hand, and on pushes to main that change the relay.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["relay/**", ".github/workflows/deploy-relay.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-relay
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Test the relay
+        working-directory: relay
+        run: npm test
+
+      - name: Check the secrets are set
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TMDB_KEY: ${{ secrets.TMDB_KEY }}
+        run: |
+          missing=""
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || missing="$missing CLOUDFLARE_API_TOKEN"
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || missing="$missing CLOUDFLARE_ACCOUNT_ID"
+          [ -n "$TMDB_KEY" ] || missing="$missing TMDB_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::Add these repository secrets (Settings > Secrets and variables > Actions):$missing"
+            exit 1
+          fi
+
+      - name: Deploy
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: relay
+          secrets: |
+            TMDB_KEY
+        env:
+          TMDB_KEY: ${{ secrets.TMDB_KEY }}
+
+      - name: Show the relay's address
+        env:
+          URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          echo "Relay: $URL"
+          {
+            echo "### TMDB relay deployed"
+            echo ""
+            echo "Address: \`$URL\`"
+            echo ""
+            echo "Builds use it when the app's STANDUP_TMDB_RELAY build setting is this host (without https://)."
+          } >> "$GITHUB_STEP_SUMMARY"
+          # A quick check that it answers through TMDB.
+          if [ -n "$URL" ]; then
+            curl -fsS "$URL/3/search/keyword?query=stand-up%20comedy" -o /dev/null && echo "The relay answered." || echo "::warning::The relay didn't answer yet; Workers can take a minute to come up."
+          fi

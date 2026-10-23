@@ -41,7 +41,10 @@ final class PlayerService {
 
     static let rates: [Float] = [0.75, 1, 1.25, 1.5, 2]
     static let skipInterval: TimeInterval = 15
-    static let saveInterval: TimeInterval = 10
+    /// Progress syncs through iCloud, so it's saved now and then while
+    /// playing (and always on pause, backgrounding and switching), not
+    /// constantly.
+    static let saveInterval: TimeInterval = 30
     /// A special counts as finished within this many seconds of its end.
     static let finishedThreshold: TimeInterval = 30
 
@@ -390,10 +393,19 @@ final class PlayerService {
 
     /// Reads the engine (time, playing, which bit) and saves progress every
     /// `saveInterval` seconds. Runs twice a second while something's loaded.
+    /// Only what changed is set: setting an observed value redraws every
+    /// view reading it (each bit row reads `isPlaying`) even when it's the
+    /// same.
     func sync() {
         guard let session else { return }
-        elapsed = engine.playbackTime
-        isPlaying = engine.isPlaying
+        let time = engine.playbackTime
+        if time != elapsed {
+            elapsed = time
+        }
+        let playing = engine.isPlaying
+        if playing != isPlaying {
+            isPlaying = playing
+        }
         if let id = engine.currentTrackID, id != currentTrack?.id,
            let newIndex = session.tracks.firstIndex(where: { $0.id == id }) {
             index = newIndex
@@ -418,7 +430,7 @@ final class PlayerService {
 
     // MARK: Progress
 
-    /// Saves where the current special is (every 10 s, on pause, on
+    /// Saves where the current special is (every 30 s, on pause, on
     /// backgrounding, and before something else is loaded). Within 30 s of
     /// the end it counts as finished and starts over next time.
     func saveProgress() {
