@@ -33,6 +33,7 @@ jobs:
         run: npm test
 
       - name: Check the secrets are set
+        id: secrets
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -42,13 +43,19 @@ jobs:
           [ -n "$CLOUDFLARE_API_TOKEN" ] || missing="$missing CLOUDFLARE_API_TOKEN"
           [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || missing="$missing CLOUDFLARE_ACCOUNT_ID"
           [ -n "$TMDB_KEY" ] || missing="$missing TMDB_KEY"
-          if [ -n "$missing" ]; then
+          if [ -z "$missing" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            # Not set up yet: a merge to main shouldn't show as a failure.
+            echo "::notice::Relay not deployed. Add these repository secrets (Settings > Secrets and variables > Actions):$missing"
+          else
             echo "::error::Add these repository secrets (Settings > Secrets and variables > Actions):$missing"
             exit 1
           fi
 
       - name: Deploy
         id: deploy
+        if: steps.secrets.outputs.ready == 'true'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -60,6 +67,7 @@ jobs:
           TMDB_KEY: ${{ secrets.TMDB_KEY }}
 
       - name: Show the relay's address
+        if: steps.secrets.outputs.ready == 'true'
         env:
           URL: ${{ steps.deploy.outputs.deployment-url }}
         run: |
