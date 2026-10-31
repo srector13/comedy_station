@@ -1,0 +1,31 @@
+# Temporary: fetch upstream Fire TV APKs so they can be repackaged for a test install.
+name: Fetch upstream Fire TV APKs (temporary)
+on:
+  push:
+    branches: [claude/fervent-goodall-v5wm7j]
+    paths: [".github/workflows/firetv-fetch-upstream.yml"]
+permissions:
+  contents: read
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Download latest release APKs
+        run: |
+          for repo in reisxd/TizenTubeCobalt tapframe/NuvioTV; do
+            rel=$(gh api "repos/$repo/releases?per_page=20")
+            tag=$(jq -r '[.[] | select(.draft|not) | select(.prerelease|not) | select(any(.assets[]; .name|endswith(".apk")))][0].tag_name // empty' <<<"$rel")
+            tag=${tag:-$(jq -r '[.[] | select(.draft|not) | select(any(.assets[]; .name|endswith(".apk")))][0].tag_name' <<<"$rel")}
+            d="up/${repo#*/}"; mkdir -p "$d"; echo "$tag" > "$d/TAG"
+            echo "$repo $tag:"; jq -r --arg t "$tag" '.[] | select(.tag_name==$t) | .assets[] | "  \(.name) \(.size)"' <<<"$rel"
+            gh release download "$tag" -R "$repo" --pattern '*.apk' --dir "$d"
+          done
+          ls -lR up
+      - uses: actions/upload-artifact@v4
+        with:
+          name: upstream-apks
+          path: up
+          compression-level: 0
+          retention-days: 3
